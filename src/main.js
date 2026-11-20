@@ -4,6 +4,9 @@ import { createWorld } from './world.js';
 import { Player } from './player.js';
 import { ThirdPersonCamera } from './camera.js';
 import { Input } from './input.js';
+import { createRandom, WORLD_SEED } from './random.js';
+import { createTrees } from './trees.js';
+import { createRocks } from './rocks.js';
 
 // Point d'entrée : crée le rendu, assemble les éléments et lance la boucle de jeu.
 
@@ -16,6 +19,12 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const { sun } = createWorld(scene, renderer);
+
+// Décor : un seul générateur à graine, utilisé d'abord par les arbres puis par les
+// rochers. La disposition est ainsi identique à chaque lancement.
+const rng = createRandom(WORLD_SEED);
+const { trunks } = createTrees(scene, rng);
+createRocks(scene, rng, trunks);
 
 const input = new Input();
 const player = new Player(scene);

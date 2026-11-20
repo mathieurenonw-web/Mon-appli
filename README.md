@@ -28,6 +28,9 @@ Ouvrez ensuite l'adresse affichée (par défaut http://localhost:5173).
 - `index.html` : page qui charge le jeu
 - `src/main.js` : point d'entrée (rendu, assemblage, boucle de jeu)
 - `src/world.js` : sol quadrillé et éclairage
+- `src/random.js` : générateur aléatoire à graine (décor identique à chaque lancement)
+- `src/trees.js` : arbres (InstancedMesh)
+- `src/rocks.js` : rochers (InstancedMesh), placés en évitant les troncs
 - `src/player.js` : personnage, déplacement et rotation douce
 - `src/camera.js` : caméra à la troisième personne lissée
 - `src/input.js` : lecture du clavier
