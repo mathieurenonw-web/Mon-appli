@@ -46,6 +46,7 @@ Ouvrez ensuite l'adresse affichée (par défaut http://localhost:5173).
 - `src/vegetation.js` : herbes et buissons décoratifs (sans collision)
 - `public/assets/` : modèles (Kenney Nature Kit) et textures (Poly Haven, Dirt Floor)
 - `src/player.js` : personnage, déplacement et rotation douce
+- `src/character.js` : modèle 3D animé du personnage (repos, course, saut)
 - `src/camera.js` : caméra à la troisième personne lissée
 - `src/input.js` : lecture du clavier
 - `src/style.css` : style plein écran

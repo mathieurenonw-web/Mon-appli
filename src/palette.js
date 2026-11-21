@@ -26,7 +26,8 @@ export const PALETTE = {
   rocks: ['#7b8087', '#6e747b', '#868b91', '#727a7d', '#7f8189'],
 
   // --- Personnage et animaux ---
-  player: '#e0703a',
+  player: '#e0703a', // capsule de repli
+  characterBrightness: 2.2, // éclaircit le personnage 3D (ses textures d'origine sont très sombres ; 1 = d'origine)
   playerNose: '#222222',
   rabbitFur: ['#a88a6a', '#8c7b6a', '#cfc6b8', '#7a6553'],
   rabbitTail: '#ece8df',

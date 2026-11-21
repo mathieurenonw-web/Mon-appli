@@ -35,6 +35,17 @@ export const ASSET_FILES = {
     normalMap: 'textures/forest_ground/forest_ground_nor_gl_2k.jpg',
     roughnessMap: 'textures/forest_ground/forest_ground_rough_2k.jpg',
   },
+  // Personnage (Mixamo, converti en .glb et allégé) et ses animations.
+  // `idle` est facultatif : sans lui, la pose debout du saut sert de repos.
+  character: {
+    model: 'models/character/character.glb',
+    animations: {
+      idle: 'models/character/idle.glb',
+      run: 'models/character/run.glb',
+      walk: 'models/character/walk.glb',
+      jump: 'models/character/jump.glb',
+    },
+  },
 };
 
 const MAX_TRIANGLES = 5000; // au-delà, un modèle est jugé trop lourd pour être répété des dizaines de fois
@@ -168,16 +179,31 @@ export async function loadAssets() {
   const loadStl = (file, halfWidth) =>
     attempt(file, async (url) => checkWeight(processStlGeometry(await stlLoader.loadAsync(url), halfWidth), file));
   const loadTexture = (file) => attempt(file, (url) => textureLoader.loadAsync(url));
+  // `quiet` : fichier facultatif, ignoré sans message s'il manque
+  const loadClip = (file, quiet) =>
+    quiet
+      ? gltfLoader.loadAsync(BASE_URL + file).then((g) => g.animations[0] ?? null).catch(() => null)
+      : attempt(file, async (url) => (await gltfLoader.loadAsync(url)).animations[0] ?? null);
+  const loadCharacter = async () => {
+    const c = ASSET_FILES.character;
+    const model = await attempt(c.model, async (url) => (await gltfLoader.loadAsync(url)).scene);
+    if (!model) return null;
+    const names = Object.keys(c.animations);
+    // L'animation de repos est facultative : pas de message si elle manque
+    const clips = await Promise.all(names.map((n) => loadClip(c.animations[n], n === 'idle')));
+    return { model, clips: Object.fromEntries(names.map((n, i) => [n, clips[i]])) };
+  };
 
   const g = ASSET_FILES.ground;
   const f = ASSET_FILES.groundForest;
-  const [trees, rocks, grass, bushes, groundMaps, forestMaps] = await Promise.all([
+  const [trees, rocks, grass, bushes, groundMaps, forestMaps, character] = await Promise.all([
     Promise.all(ASSET_FILES.trees.map(loadTree)),
     Promise.all(ASSET_FILES.rocks.map((f) => loadStl(f, 1))),
     Promise.all(ASSET_FILES.grass.map((f) => loadStl(f, 0.5))),
     Promise.all(ASSET_FILES.bushes.map((f) => loadStl(f, 0.5))),
     Promise.all([g.map, g.normalMap, g.roughnessMap].map(loadTexture)),
     Promise.all([f.map, f.normalMap, f.roughnessMap].map(loadTexture)),
+    loadCharacter(),
   ]);
 
   const [map, normalMap, roughnessMap] = groundMaps;
@@ -191,6 +217,7 @@ export async function loadAssets() {
     // La couleur est indispensable ; normales et rugosité sont facultatives
     ground: map ? { map, normalMap, roughnessMap } : null,
     groundForest: forestMaps[0] ? { map: forestMaps[0], normalMap: forestMaps[1], roughnessMap: forestMaps[2] } : null,
+    character, // null si le modèle manque : la capsule d'origine est utilisée
     problems,
   };
 }

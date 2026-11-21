@@ -31,7 +31,7 @@ document.body.appendChild(renderer.domElement);
 loadAssets()
   .catch((err) => {
     console.warn('[assets] chargement impossible, formes simples utilisées :', err);
-    return { trees: [], rocks: [], grass: [], bushes: [], ground: null, groundForest: null, problems: [] };
+    return { trees: [], rocks: [], grass: [], bushes: [], ground: null, groundForest: null, character: null, problems: [] };
   })
   .then(start);
 
@@ -54,7 +54,7 @@ function start(assets) {
   const sound = new SoundSystem();
 
   const input = new Input();
-  const player = new Player(scene);
+  const player = new Player(scene, assets.character);
   const tpCamera = new ThirdPersonCamera(window.innerWidth / window.innerHeight);
   tpCamera.snapTo(player.position);
 

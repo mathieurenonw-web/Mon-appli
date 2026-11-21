@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { PALETTE } from './palette.js';
+import { CharacterModel } from './character.js';
 
-// Le personnage placeholder : une capsule avec un petit « nez » pour voir où il regarde.
+// Le personnage : modèle animé (character.js) s'il est chargé, sinon la capsule d'origine
+// avec un petit « nez » pour voir où il regarde. Les collisions ne dépendent pas du modèle.
 
 export const PLAYER_SPEED = 5; // unités (cases) par seconde
 const TURN_SPEED = 10; // vitesse de la rotation douce (plus grand = plus rapide)
@@ -15,7 +17,11 @@ const STEP_UP = 0.1; // montée max par image en suivant le dessus d'un rocher (
 const SNAP_DOWN = 0.35; // reste « collé » au sol en descendant une colline ou un rocher arrondi
 
 export class Player {
-  constructor(scene) {
+  /**
+   * @param {THREE.Scene} scene
+   * @param {{ model: THREE.Object3D, clips: object } | null} character  modèle animé (assets.js)
+   */
+  constructor(scene, character = null) {
     this.mesh = new THREE.Group();
 
     const radius = PLAYER_RADIUS;
@@ -36,6 +42,15 @@ export class Player {
     nose.position.set(0, 1.35, radius);
     nose.castShadow = true;
     this.mesh.add(nose);
+
+    // Modèle animé : remplace la capsule (qui reste dans le code comme solution de repli)
+    this.character = null;
+    if (character?.model) {
+      body.visible = false;
+      nose.visible = false;
+      this.character = new CharacterModel(character.model, character.clips, PLAYER_SPEED);
+      this.mesh.add(character.model);
+    }
 
     scene.add(this.mesh);
 
@@ -111,5 +126,13 @@ export class Player {
       this.grounded = false;
       this.supportRock = -1;
     }
+
+    // Animation du personnage selon son état
+    this.character?.update(dt, {
+      moving: this.isMoving,
+      grounded: this.grounded,
+      jumped: this.jumped,
+      landed: this.landed,
+    });
   }
 }
