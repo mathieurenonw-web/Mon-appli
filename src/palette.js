@@ -29,6 +29,11 @@ export const PALETTE = {
   pebbles: ['#7f7d77', '#6e6c67', '#8a867d', '#77726b'], // galets
   bridgeWood: '#6e5a44', // bois du pont
 
+  // --- Grotte (cave.js) ---
+  caveRock: '#66635d', // roche du dôme et des rochers autour
+  torchFlame: '#ffb347', // flamme (brille grâce au bloom)
+  torchLight: '#ff9a40', // lumière de la torche
+
   // --- Ruines ---
   ruinStone: '#8b877e', // pierre des murs effondrés
 

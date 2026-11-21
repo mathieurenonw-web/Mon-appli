@@ -4,6 +4,7 @@ import * as THREE from 'three';
 // et le rejoint en douceur (amortissement exponentiel, sans à-coups).
 
 const OFFSET = new THREE.Vector3(0, 6, 9); // position relative au personnage
+const INDOOR_OFFSET = new THREE.Vector3(0, 1.9, 2.8); // plus près et plus bas, sous une voûte (grotte)
 const LOOK_HEIGHT = 1; // on vise le haut du corps plutôt que les pieds
 const FOLLOW_SPEED = 4; // plus grand = caméra plus réactive
 const MIN_HEIGHT_ABOVE_GROUND = 1.5; // la caméra reste toujours au-dessus du terrain
@@ -13,6 +14,7 @@ export class ThirdPersonCamera {
     this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 500);
     this._target = new THREE.Vector3();
     this._desired = new THREE.Vector3();
+    this.indoor = false; // vrai dans un lieu fermé : la caméra se rapproche (en douceur)
   }
 
   /** Place la caméra immédiatement (au démarrage). */
@@ -36,7 +38,7 @@ export class ThirdPersonCamera {
     this._target.lerp(this._desired, t);
 
     // Position de la caméra, lissée
-    this._desired.copy(position).add(OFFSET);
+    this._desired.copy(position).add(this.indoor ? INDOOR_OFFSET : OFFSET);
     this.camera.position.lerp(this._desired, t);
     if (heightAt) {
       const minY = heightAt(this.camera.position.x, this.camera.position.z) + MIN_HEIGHT_ABOVE_GROUND;

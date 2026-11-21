@@ -6,7 +6,8 @@ import { ThirdPersonCamera } from './camera.js';
 import { Input } from './input.js';
 import { createRandom, WORLD_SEED } from './random.js';
 import { Colliders } from './collisions.js';
-import { ChunkManager } from './chunks.js';
+import { ChunkManager, chunkOf } from './chunks.js';
+import { Cave, findCaveSite, caveArea } from './cave.js';
 import { RegionAmbience } from './region.js';
 import { Animals } from './animals.js';
 import { DayNight } from './daynight.js';
@@ -44,6 +45,19 @@ function start(assets) {
   // Obstacles uniques placés à la main : garde-corps du pont
   const structures = { walls: bridgeWalls() };
   const chunks = new ChunkManager(scene, groundMaterial, assets, structures);
+  // Grotte cachée dans la zone rocheuse la plus proche (loin des ruines)
+  const ruinsNear = (x, z) => {
+    const { cx, cz } = chunkOf(x, z);
+    const out = [];
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) out.push(...chunks.ruinsOf(cx + dx, cz + dz));
+    return out;
+  };
+  const caveSite = findCaveSite(ruinsNear);
+  const cave = caveSite ? new Cave(scene, caveSite, chunks.rockVariants) : null;
+  if (cave) {
+    chunks.reserve(caveArea(caveSite));
+    chunks.addStructures(cave.colliders);
+  }
   chunks.update(new THREE.Vector3(0, 0, 0), true);
   scene.add(createBridgeMesh());
   // On marche sur le terrain ou sur le pont ; l'eau de la rivière repousse vers la berge
@@ -71,7 +85,7 @@ function start(assets) {
   const clock = new THREE.Clock();
   const previous = new THREE.Vector3();
   // Pour les tests et le suivi : état du monde accessible depuis la console du navigateur
-  window.game = { chunks, player, region };
+  window.game = { chunks, player, region, cave };
 
   function loop() {
     const frameTime = clock.getDelta();
@@ -89,6 +103,8 @@ function start(assets) {
     updateWater(dt);
     dayNight.update(dt, player.position);
     region.update(dt, player.position); // après le cycle jour/nuit : assombrit dans la Forêt Noire
+    cave?.update(dt, player.position, { sun, hemi }); // obscurité et torche dans la grotte
+    tpCamera.indoor = Boolean(cave?.inside); // caméra rapprochée sous la voûte
     tpCamera.update(dt, player.position, heightAt);
     sound.update(dt, {
       walking: player.isMoving && player.grounded,
