@@ -29,12 +29,10 @@ export const ASSET_FILES = {
     normalMap: 'textures/dirt_floor/dirt_floor_nor_gl_2k.jpg',
     roughnessMap: 'textures/dirt_floor/dirt_floor_rough_2k.jpg',
   },
-  // Sous-bois, utilisé en plaine (facultatif : sans lui, Dirt Floor teintée le remplace)
-  groundForest: {
-    map: 'textures/forest_ground/forest_ground_diff_2k.jpg',
-    normalMap: 'textures/forest_ground/forest_ground_nor_gl_2k.jpg',
-    roughnessMap: 'textures/forest_ground/forest_ground_rough_2k.jpg',
-  },
+  // Sous-bois en plaine : pas de texture dédiée, Dirt Floor teintée la remplace
+  // (réglage de la teinte : forestFallbackTint dans palette.js).
+  // Pour en ajouter une plus tard : groundForest: { map, normalMap, roughnessMap }.
+  groundForest: null,
   // Personnage (Mixamo, converti en .glb et allégé) et ses animations.
   // `idle` est facultatif : sans lui, la pose debout du saut sert de repos.
   character: {
@@ -196,13 +194,14 @@ export async function loadAssets() {
 
   const g = ASSET_FILES.ground;
   const f = ASSET_FILES.groundForest;
+  const loadForest = () => (f ? Promise.all([f.map, f.normalMap, f.roughnessMap].map(loadTexture)) : Promise.resolve([]));
   const [trees, rocks, grass, bushes, groundMaps, forestMaps, character] = await Promise.all([
     Promise.all(ASSET_FILES.trees.map(loadTree)),
     Promise.all(ASSET_FILES.rocks.map((f) => loadStl(f, 1))),
     Promise.all(ASSET_FILES.grass.map((f) => loadStl(f, 0.5))),
     Promise.all(ASSET_FILES.bushes.map((f) => loadStl(f, 0.5))),
     Promise.all([g.map, g.normalMap, g.roughnessMap].map(loadTexture)),
-    Promise.all([f.map, f.normalMap, f.roughnessMap].map(loadTexture)),
+    loadForest(),
     loadCharacter(),
   ]);
 
