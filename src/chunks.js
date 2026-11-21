@@ -8,6 +8,7 @@ import { createTreeKinds, placeTrees, placementRadius, treeInstances } from './t
 import { createRockVariants, placeRocks, rockInstances } from './rocks.js';
 import { createVegetationKinds, placeVegetation, vegetationInstances } from './vegetation.js';
 import { createWaterGeometry, createWaterMaterial, bankMaskAt, placePebbles, pebbleInstances } from './water.js';
+import { placeClearings, clearingInstances, createShaftGeometry, createShaftMaterial, isInClearing } from './clearing.js';
 
 // Monde découpé en morceaux carrés (chunks) générés autour du personnage.
 //
@@ -132,7 +133,7 @@ export class ChunkManager {
     this.reserved = []; // zones à garder libres d'arbres, de rochers et d'herbe (grotte…)
     this.scene = scene;
     this.groundMaterial = groundMaterial;
-    this.cache = { ruins: new Map(), trees: new Map(), rocks: new Map(), plants: new Map(), pebbles: new Map(), data: new Map(), near: new Map() };
+    this.cache = { ruins: new Map(), clearings: new Map(), trees: new Map(), rocks: new Map(), plants: new Map(), pebbles: new Map(), data: new Map(), near: new Map() };
     this.waterMaterial = createWaterMaterial();
     this.loaded = new Map(); // morceaux affichés : clé → { cx, cz, mesh, data }
     this.playerChunk = null;
@@ -166,6 +167,8 @@ export class ChunkManager {
     // Galets un peu assombris : petites facettes très exposées au soleil
     const pebbleMaterial = new THREE.MeshStandardMaterial({ color: 0x8c8c8c, roughness: 0.9, flatShading: true });
     pool('pebble', new THREE.IcosahedronGeometry(1, 0), pebbleMaterial, 'grass', true, false);
+    this.shaftMaterial = createShaftMaterial();
+    pool('shaft', createShaftGeometry(), this.shaftMaterial, 'always', false, false);
   }
 
   /** Ajoute des obstacles uniques (à faire avant le premier chargement). */
@@ -183,6 +186,30 @@ export class ChunkManager {
   /** Ruines proches et zones réservées : à éviter lors du placement. */
   #avoid(cx, cz) {
     return [...this.#around(cx, cz, (x, z) => this.ruinsOf(x, z)), ...this.reserved];
+  }
+
+  /** Comme #avoid, plus les clairières (pour les arbres et les rochers). */
+  #avoidWithClearings(cx, cz) {
+    return [...this.#avoid(cx, cz), ...this.#around(cx, cz, (x, z) => this.clearingsOf(x, z))];
+  }
+
+  clearingsOf(cx, cz) {
+    return this.#cached(this.cache.clearings, cx, cz, () => {
+      const { x0, z0 } = chunkOrigin(cx, cz);
+      return placeClearings(x0, z0, CHUNK_SIZE, createRandom(chunkSeed(cx, cz, 6)), this.#avoid(cx, cz));
+    });
+  }
+
+  /** Clairière dans laquelle se trouve (x, z), ou null. */
+  clearingAt(x, z) {
+    const { cx, cz } = chunkOf(x, z);
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const c = this.clearingsOf(cx + dx, cz + dz).find((cl) => isInClearing(cl, x, z));
+        if (c) return c;
+      }
+    }
+    return null;
   }
 
   // --- Génération (fonctions pures, mises en cache) ---------------------------
@@ -211,7 +238,7 @@ export class ChunkManager {
   treesOf(cx, cz) {
     return this.#cached(this.cache.trees, cx, cz, () => {
       const { x0, z0 } = chunkOrigin(cx, cz);
-      const ruins = this.#avoid(cx, cz);
+      const ruins = this.#avoidWithClearings(cx, cz);
       return placeTrees(x0, z0, CHUNK_SIZE, createRandom(chunkSeed(cx, cz, 2)), ruins);
     });
   }
@@ -220,7 +247,7 @@ export class ChunkManager {
     return this.#cached(this.cache.rocks, cx, cz, () => {
       const { x0, z0 } = chunkOrigin(cx, cz);
       const trunks = this.#around(cx, cz, (x, z) => this.treesOf(x, z).map((t) => ({ x: t.x, z: t.z, r: placementRadius(t) })));
-      const ruins = this.#avoid(cx, cz);
+      const ruins = this.#avoidWithClearings(cx, cz);
       return placeRocks(x0, z0, CHUNK_SIZE, createRandom(chunkSeed(cx, cz, 3)), trunks, ruins);
     });
   }
@@ -233,7 +260,8 @@ export class ChunkManager {
         ...this.rocksOf(x, z).map((r) => ({ x: r.x, z: r.z, r: r.size * 1.1 })),
       ]);
       const ruins = this.#avoid(cx, cz);
-      return placeVegetation(x0, z0, CHUNK_SIZE, createRandom(chunkSeed(cx, cz, 4)), obstacles, ruins);
+      const clearings = this.#around(cx, cz, (x, z) => this.clearingsOf(x, z));
+      return placeVegetation(x0, z0, CHUNK_SIZE, createRandom(chunkSeed(cx, cz, 4)), obstacles, ruins, clearings);
     });
   }
 
@@ -266,6 +294,7 @@ export class ChunkManager {
       const rocks = rockInstances(this.rocksOf(cx, cz), this.rockVariants, lists.add);
       vegetationInstances(this.plantsOf(cx, cz), this.vegKinds, lists.add);
       pebbleInstances(this.pebblesOf(cx, cz), lists.add);
+      clearingInstances(this.clearingsOf(cx, cz), lists.add);
       const s = this.structures;
       const { x0, z0 } = chunkOrigin(cx, cz);
       return {

@@ -57,8 +57,9 @@ function roadGrassFactor(x, z) {
  * Emplacements des herbes et buissons d'un morceau (fonction pure).
  * @param {{ x: number, z: number, r: number }[]} obstacles  troncs et rochers proches
  * @param {{ x: number, z: number, radius: number }[]} ruins  ruines proches
+ * @param {{ x: number, z: number, radius: number }[]} clearings  clairières (herbe plus dense et plus claire)
  */
-export function placeVegetation(x0, z0, size, rng, obstacles = [], ruins = []) {
+export function placeVegetation(x0, z0, size, rng, obstacles = [], ruins = [], clearings = []) {
   const plants = [];
   const isFree = (x, z) =>
     !obstacles.some((o) => Math.hypot(o.x - x, o.z - z) < o.r) &&
@@ -83,7 +84,11 @@ export function placeVegetation(x0, z0, size, rng, obstacles = [], ruins = []) {
         lod: i % 2 === 0, // un buisson sur deux reste visible dans les morceaux éloignés
       };
       const dens = densitiesAt(x, z);
-      const density = type === 'grass' ? dens.grass * roadGrassFactor(x, z) : dens.bushes;
+      plant.bright = clearings.some((c) => Math.hypot(c.x - x, c.z - z) < c.radius);
+      const density =
+        type === 'grass'
+          ? (plant.bright ? 40 : dens.grass) * roadGrassFactor(x, z) // herbe dense dans les clairières
+          : dens.bushes * (plant.bright ? 0.2 : 1); // peu de buissons dans les clairières
       if (keepRoll > density / max) continue;
       if (type === 'bush' && isOnRoad(x, z, 0.8)) continue;
       // Pas de plante dans l'eau ; pas de buisson sur les berges (l'herbe, elle, y pousse un peu)
@@ -128,7 +133,7 @@ export function vegetationInstances(plants, kinds, add) {
     _color.setHSL(
       base.h + (p.tint[0] * 2 - 1) * v.hue,
       THREE.MathUtils.clamp(base.s + (p.tint[1] * 2 - 1) * v.saturation, 0, 1),
-      THREE.MathUtils.clamp(base.l + (p.tint[2] * 2 - 1) * v.lightness, 0, 1)
+      THREE.MathUtils.clamp(base.l + (p.tint[2] * 2 - 1) * v.lightness + (p.bright ? PALETTE.clearingGrassLift : 0), 0, 1)
     );
     add(`${p.type}${k}`, _m, _color, p.lod);
   }

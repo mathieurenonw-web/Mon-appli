@@ -34,6 +34,10 @@ export const PALETTE = {
   torchFlame: '#ffb347', // flamme (brille grâce au bloom)
   torchLight: '#ff9a40', // lumière de la torche
 
+  // --- Clairières (clearing.js) ---
+  lightShaft: '#fff1c8', // rayons de soleil
+  clearingGrassLift: 0.12, // l'herbe des clairières est plus claire (luminosité ajoutée)
+
   // --- Ruines ---
   ruinStone: '#8b877e', // pierre des murs effondrés
 

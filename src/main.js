@@ -8,6 +8,7 @@ import { createRandom, WORLD_SEED } from './random.js';
 import { Colliders } from './collisions.js';
 import { ChunkManager, chunkOf } from './chunks.js';
 import { Cave, findCaveSite, caveArea } from './cave.js';
+import { ClearingAmbience } from './clearing.js';
 import { RegionAmbience } from './region.js';
 import { Animals } from './animals.js';
 import { DayNight } from './daynight.js';
@@ -67,6 +68,7 @@ function start(assets) {
   const sky = new Sky(scene);
   const dayNight = new DayNight(sky, { sun, hemi });
   const region = new RegionAmbience({ scene, sky, sun, hemi, foliageMaterial: chunks.foliageMaterial });
+  const clearing = new ClearingAmbience((x, z) => chunks.clearingAt(x, z), chunks.shaftMaterial);
   const sound = new SoundSystem();
 
   const input = new Input();
@@ -85,7 +87,7 @@ function start(assets) {
   const clock = new THREE.Clock();
   const previous = new THREE.Vector3();
   // Pour les tests et le suivi : état du monde accessible depuis la console du navigateur
-  window.game = { chunks, player, region, cave };
+  window.game = { chunks, player, region, cave, clearing };
 
   function loop() {
     const frameTime = clock.getDelta();
@@ -105,6 +107,7 @@ function start(assets) {
     region.update(dt, player.position); // après le cycle jour/nuit : assombrit dans la Forêt Noire
     cave?.update(dt, player.position, { sun, hemi }); // obscurité et torche dans la grotte
     tpCamera.indoor = Boolean(cave?.inside); // caméra rapprochée sous la voûte
+    clearing.update(dt, player.position, { sun, hemi, daylight: dayNight.daylight }); // plus clair dans une clairière
     tpCamera.update(dt, player.position, heightAt);
     sound.update(dt, {
       walking: player.isMoving && player.grounded,
