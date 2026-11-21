@@ -7,6 +7,10 @@ import { Input } from './input.js';
 import { createRandom, WORLD_SEED } from './random.js';
 import { createTrees } from './trees.js';
 import { createRocks } from './rocks.js';
+import { Colliders } from './collisions.js';
+import { Animals } from './animals.js';
+import { DayNight } from './daynight.js';
+import { SoundSystem } from './sound.js';
 
 // Point d'entrée : crée le rendu, assemble les éléments et lance la boucle de jeu.
 
@@ -18,13 +22,18 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const { sun } = createWorld(scene, renderer);
+const { sun, hemi } = createWorld(scene, renderer);
 
 // Décor : un seul générateur à graine, utilisé d'abord par les arbres puis par les
 // rochers. La disposition est ainsi identique à chaque lancement.
 const rng = createRandom(WORLD_SEED);
 const { trunks } = createTrees(scene, rng);
-createRocks(scene, rng, trunks);
+const { rocks } = createRocks(scene, rng, trunks);
+const colliders = new Colliders(trunks, rocks);
+const animals = new Animals(scene, rng, colliders);
+
+const dayNight = new DayNight(scene, { sun, hemi });
+const sound = new SoundSystem();
 
 const input = new Input();
 const player = new Player(scene);
@@ -37,18 +46,21 @@ window.addEventListener('resize', () => {
 });
 
 const clock = new THREE.Clock();
-const SUN_OFFSET = new THREE.Vector3(8, 15, 6);
 
 function loop() {
   // dt plafonné pour éviter un grand saut après un changement d'onglet
   const dt = Math.min(clock.getDelta(), 0.1);
 
-  player.update(dt, input);
+  player.update(dt, input, colliders);
+  animals.update(dt, player.position);
+  dayNight.update(dt, player.position);
   tpCamera.update(dt, player.position);
-
-  // Le soleil suit le joueur pour que les ombres restent nettes autour de lui
-  sun.target.position.copy(player.position);
-  sun.position.copy(player.position).add(SUN_OFFSET);
+  sound.update(dt, {
+    walking: player.isMoving && player.grounded,
+    jumped: player.jumped,
+    landed: player.landed,
+    daylight: dayNight.daylight,
+  });
 
   renderer.render(scene, tpCamera.camera);
   requestAnimationFrame(loop);

@@ -42,7 +42,7 @@ export function createWorld(scene, renderer) {
   const hemi = new THREE.HemisphereLight(0xdfefff, 0x4a5a3a, 1.2);
   scene.add(hemi);
 
-  // Lumière directionnelle type « soleil », avec ombres
+  // Lumière directionnelle type « soleil », avec ombres (position gérée par daynight.js)
   const sun = new THREE.DirectionalLight(0xffffff, 2);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -52,5 +52,5 @@ export function createWorld(scene, renderer) {
   scene.add(sun);
   scene.add(sun.target);
 
-  return { ground, sun };
+  return { ground, sun, hemi };
 }

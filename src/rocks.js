@@ -41,6 +41,8 @@ function createRockGeometry(rng) {
  * @param {{ next: Function, range: Function, int: Function }} rng  le même générateur
  *   à graine que les arbres (voir main.js)
  * @param {{ x: number, z: number, radius: number }[]} trunks  troncs à éviter
+ * @returns {{ rocks: { x: number, z: number, footprint: number, top: number }[] }}
+ *   emprise au sol et hauteur de chaque rocher, pour les collisions
  */
 export function createRocks(scene, rng, trunks = []) {
   // 1. Choix des emplacements
@@ -78,6 +80,8 @@ export function createRocks(scene, rng, trunks = []) {
   const quaternion = new THREE.Quaternion();
   const scale = new THREE.Vector3();
   const color = new THREE.Color();
+  const vertex = new THREE.Vector3();
+  const colliders = [];
 
   for (let variant = 0; variant < VARIANT_COUNT; variant++) {
     const geometry = createRockGeometry(rng);
@@ -85,6 +89,7 @@ export function createRocks(scene, rng, trunks = []) {
     if (group.length === 0) continue;
 
     const mesh = new THREE.InstancedMesh(geometry, material, group.length);
+    const vertices = geometry.attributes.position;
     group.forEach((rock, i) => {
       scale.copy(rock.stretch).multiplyScalar(rock.size);
       // Enfoncé dans le sol pour qu'il ne flotte pas malgré l'inclinaison
@@ -93,6 +98,16 @@ export function createRocks(scene, rng, trunks = []) {
       matrix.compose(position, quaternion, scale);
       mesh.setMatrixAt(i, matrix);
       mesh.setColorAt(i, color.setHex(rock.color));
+
+      // Mesures pour les collisions, sur les sommets réels du rocher transformé
+      let top = 0;
+      let reach = 0;
+      for (let k = 0; k < vertices.count; k++) {
+        vertex.fromBufferAttribute(vertices, k).applyMatrix4(matrix);
+        top = Math.max(top, vertex.y);
+        reach = Math.max(reach, Math.hypot(vertex.x - rock.x, vertex.z - rock.z));
+      }
+      colliders.push({ x: rock.x, z: rock.z, footprint: reach * 0.85, top: top * 0.95 });
     });
 
     mesh.castShadow = true;
@@ -102,4 +117,6 @@ export function createRocks(scene, rng, trunks = []) {
     mesh.computeBoundingSphere();
     scene.add(mesh);
   }
+
+  return { rocks: colliders };
 }
