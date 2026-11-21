@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { PALETTE } from './palette.js';
-import { createTerrainGeometry, TERRAIN_SIZE } from './terrain.js';
 
-// Le décor : terrain en relief (forme : terrain.js) avec grille de repère, et éclairage.
+// Le décor : matériau du sol (partagé par tous les morceaux de terrain, voir chunks.js),
+// avec grille de repère et route plus claire, et éclairage.
 // (Le ciel et le brouillard sont gérés par sky.js.)
+// Les coordonnées de texture des morceaux suivent la position dans le monde :
+// 1 unité de texture = TEXTURE_TILE_SIZE unités du monde.
 
-const GROUND_SIZE = TERRAIN_SIZE; // en unités ; 1 case de grille = 1 unité
+const ROAD_BRIGHTNESS = 2.4; // la route (terre tassée, pâle) est nettement plus claire que le sol autour
 // Mélange sous-bois / terre selon la pente (1 - cos de l'angle) : ~11° → début de terre, ~20° → terre seule
 const SLOPE_DIRT_START = 0.02;
 const SLOPE_DIRT_FULL = 0.06;
@@ -29,7 +31,7 @@ function createGridTexture(renderer) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(GROUND_SIZE, GROUND_SIZE);
+  texture.repeat.set(TEXTURE_TILE_SIZE, TEXTURE_TILE_SIZE); // 1 case de grille = 1 unité
   texture.anisotropy = renderer.capabilities.getMaxAnisotropy(); // lignes nettes au loin
   return texture;
 }
@@ -42,12 +44,10 @@ function createGridTexture(renderer) {
  * Si Forest Ground manque, le sous-bois est une version teintée de Dirt Floor.
  */
 function createTexturedGroundMaterial(renderer, dirt, forest) {
-  const repeat = GROUND_SIZE / TEXTURE_TILE_SIZE;
   const all = [dirt.map, dirt.normalMap, dirt.roughnessMap, forest?.map, forest?.normalMap, forest?.roughnessMap];
   for (const tex of all) {
     if (!tex) continue;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(repeat, repeat);
     tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
   }
   dirt.map.colorSpace = THREE.SRGBColorSpace;
@@ -72,14 +72,15 @@ function createTexturedGroundMaterial(renderer, dirt, forest) {
       forestTint: { value: new THREE.Color(hasForest ? PALETTE.forestGroundTint : PALETTE.forestFallbackTint) },
       forestScale: { value: hasForest ? 1 : 0.63 }, // version de repli : autre échelle, pour se distinguer
       slopeRange: { value: new THREE.Vector2(SLOPE_DIRT_START, SLOPE_DIRT_FULL) },
+      roadTint: { value: new THREE.Color(PALETTE.roadTint).multiplyScalar(ROAD_BRIGHTNESS) },
     });
 
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vGroundPos;\nvarying float vSlope;')
+      .replace('#include <common>', '#include <common>\nattribute float roadMask;\nvarying vec2 vGroundPos;\nvarying float vSlope;\nvarying float vRoad;')
       .replace(
         '#include <begin_vertex>',
         // Le maillage est en coordonnées du monde : position.xz = position au sol, normal.y = pente
-        '#include <begin_vertex>\nvGroundPos = position.xz;\nvSlope = 1.0 - normal.y;'
+        '#include <begin_vertex>\nvGroundPos = position.xz;\nvSlope = 1.0 - normal.y;\nvRoad = roadMask;'
       );
 
     shader.fragmentShader = shader.fragmentShader
@@ -88,6 +89,8 @@ function createTexturedGroundMaterial(renderer, dirt, forest) {
         /* glsl */ `#include <common>
         varying vec2 vGroundPos;
         varying float vSlope;
+        varying float vRoad;
+        uniform vec3 roadTint;
         uniform float gridStrength;
         uniform float groundSaturation;
         uniform sampler2D forestMap;
@@ -111,8 +114,13 @@ function createTexturedGroundMaterial(renderer, dirt, forest) {
           forestColor.rgb *= forestTint;
           // Mélange selon la pente, avec une frontière irrégulière (pas de ligne droite)
           float wobble = sin( vGroundPos.x * 0.31 + sin( vGroundPos.y * 0.23 ) * 2.0 ) * sin( vGroundPos.y * 0.27 + 1.1 );
-          forestAmount = 1.0 - smoothstep( slopeRange.x, slopeRange.y, vSlope + wobble * 0.012 );
+          forestAmount = ( 1.0 - smoothstep( slopeRange.x, slopeRange.y, vSlope + wobble * 0.012 ) ) * ( 1.0 - vRoad );
           vec4 sampledDiffuseColor = mix( dirtColor, forestColor, forestAmount );
+          // Route envahie : terre plus claire et tassée
+          // (on garde le grain de la texture, mais en plus pâle et moins coloré)
+          float dirtLuma = dot( dirtColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) );
+          vec3 roadColor = mix( vec3( dirtLuma ), dirtColor.rgb, 0.15 ) * roadTint;
+          sampledDiffuseColor.rgb = mix( sampledDiffuseColor.rgb, roadColor, vRoad );
           // Grandes taches plus claires / plus sombres (quelques dizaines d'unités)
           vec2 w = vGroundPos * 0.045;
           float macro = 0.88 + 0.12 * sin( w.x * 1.3 + sin( w.y * 0.7 ) ) * sin( w.y * 1.1 + 1.7 );
@@ -154,15 +162,10 @@ function createTexturedGroundMaterial(renderer, dirt, forest) {
  * @param {{ map, normalMap, roughnessMap } | null} forestTextures  textures Forest Ground (facultatives)
  */
 export function createWorld(scene, renderer, groundTextures = null, forestTextures = null) {
-  // Terrain en relief (terrain.js), texturé ou uni quadrillé
-  const ground = new THREE.Mesh(
-    createTerrainGeometry(),
-    groundTextures
-      ? createTexturedGroundMaterial(renderer, groundTextures, forestTextures)
-      : new THREE.MeshStandardMaterial({ map: createGridTexture(renderer), roughness: 1 })
-  );
-  ground.receiveShadow = true;
-  scene.add(ground);
+  // Matériau du sol, texturé ou uni quadrillé (les morceaux de terrain sont créés par chunks.js)
+  const groundMaterial = groundTextures
+    ? createTexturedGroundMaterial(renderer, groundTextures, forestTextures)
+    : new THREE.MeshStandardMaterial({ map: createGridTexture(renderer), roughness: 1 });
 
   // Lumière ambiante ciel/sol : éclaire doucement toutes les faces (couleurs : daynight.js)
   const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 1);
@@ -181,5 +184,5 @@ export function createWorld(scene, renderer, groundTextures = null, forestTextur
   scene.add(sun);
   scene.add(sun.target);
 
-  return { ground, sun, hemi };
+  return { groundMaterial, sun, hemi };
 }

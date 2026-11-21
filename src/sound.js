@@ -55,9 +55,10 @@ export class SoundSystem {
 
   /**
    * @param {number} dt
-   * @param {{ walking: boolean, jumped: boolean, landed: boolean, daylight: number }} state
+   * @param {{ walking: boolean, jumped: boolean, landed: boolean, daylight: number, regionFactor?: number }} state
+   *   regionFactor : 0 hors de la Forêt Noire, 1 en plein dedans (transition progressive)
    */
-  update(dt, { walking, jumped, landed, daylight }) {
+  update(dt, { walking, jumped, landed, daylight, regionFactor = 0 }) {
     if (!this.ctx) return;
     this.time += dt;
     const now = this.ctx.currentTime;
@@ -67,7 +68,8 @@ export class SoundSystem {
     if (this.windTimer <= 0) {
       this.windTimer = 0.5;
       const t = this.time;
-      const volume = 0.07 + 0.035 * Math.sin(t * 0.23) + 0.02 * Math.sin(t * 0.61 + 1.3);
+      // Dans la Forêt Noire, le vent est plus présent (jusqu'à +70 %)
+      const volume = (0.07 + 0.035 * Math.sin(t * 0.23) + 0.02 * Math.sin(t * 0.61 + 1.3)) * (1 + 0.7 * regionFactor);
       this.windGain.gain.setTargetAtTime(volume, now, 0.8);
       this.windFilter.frequency.setTargetAtTime(380 + 160 * Math.sin(t * 0.17), now, 0.8);
     }
@@ -87,8 +89,9 @@ export class SoundSystem {
     if (landed) this.#playLand();
 
     // Oiseaux, seulement le jour
-    if (daylight > 0.6) {
-      this.nextBird -= dt;
+    // Dans la Forêt Noire, les oiseaux se taisent progressivement
+    if (daylight > 0.6 && regionFactor < 0.95) {
+      this.nextBird -= dt * (1 - regionFactor);
       if (this.nextBird <= 0) {
         this.#playBirdSong();
         this.nextBird = 5 + Math.random() * 10;

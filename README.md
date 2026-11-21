@@ -32,6 +32,10 @@ Ouvrez ensuite l'adresse affichée (par défaut http://localhost:5173).
 - `src/main.js` : point d'entrée (rendu, assemblage, boucle de jeu)
 - `src/world.js` : sol (textures mélangées selon la pente) et éclairage
 - `src/terrain.js` : relief du terrain (bruit de Perlin, graine fixe), hauteur et pente en tout point
+- `src/chunks.js` : monde découpé en morceaux de 64 unités, chargés autour du personnage
+- `src/biomes.js` : sous-bois dense, clairière, zone rocheuse (densités qui varient en douceur)
+- `src/ruins.js` : route envahie et ruines (murs effondrés avec collisions)
+- `src/region.js` : régions nommées (Forêt Noire) et changement d'ambiance
 - `src/random.js` : générateur aléatoire à graine (décor identique à chaque lancement)
 - `src/trees.js` : arbres (InstancedMesh)
 - `src/rocks.js` : rochers (InstancedMesh), placés en évitant les troncs

@@ -58,7 +58,7 @@ export class Player {
 
     this.velocityY = 0;
     this.grounded = true;
-    this.supportRock = -1; // rocher sur lequel il se tient (-1 = terrain)
+    this.supportObj = null; // rocher ou mur sur lequel il se tient (null = terrain)
     this.isMoving = false;
     // Événements de l'image en cours (lus par sound.js)
     this.jumped = false;
@@ -105,9 +105,9 @@ export class Player {
     pos.y += this.velocityY * dt;
 
     // Sol sous les pieds : le terrain, ou le dessus d'un rocher (voir collisions.js)
-    const { height: support, rock } = colliders
-      ? colliders.groundSupport(pos.x, pos.z, PLAYER_RADIUS, prevY, STEP_UP, this.supportRock)
-      : { height: 0, rock: -1 };
+    const { height: support, support: supportObj } = colliders
+      ? colliders.groundSupport(pos.x, pos.z, PLAYER_RADIUS, prevY, STEP_UP, this.supportObj)
+      : { height: 0, support: null };
 
     if (pos.y <= support) {
       // Réception (au sol ou sur un rocher)
@@ -115,16 +115,16 @@ export class Player {
       pos.y = support;
       this.velocityY = 0;
       this.grounded = true;
-      this.supportRock = rock;
+      this.supportObj = supportObj;
     } else if (this.grounded && this.velocityY <= 0 && prevY - support <= SNAP_DOWN) {
       // Descend doucement le long d'une pente ou d'un rocher arrondi au lieu de « décoller »
       pos.y = support;
       this.velocityY = 0;
-      this.supportRock = rock;
+      this.supportObj = supportObj;
     } else {
       // En l'air (saut, ou chute après avoir quitté un rocher)
       this.grounded = false;
-      this.supportRock = -1;
+      this.supportObj = null;
     }
 
     // Animation du personnage selon son état

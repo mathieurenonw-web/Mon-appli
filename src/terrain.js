@@ -4,8 +4,6 @@ import { createRandom, WORLD_SEED } from './random.js';
 // Relief du terrain : bruit de Perlin 2D (écrit ici, sans bibliothèque) à graine fixe.
 // Toutes les hauteurs du jeu passent par heightAt(x, z) : sol, objets, personnage, animaux.
 
-export const TERRAIN_SIZE = 200; // côté du terrain, en unités (comme l'ancien sol plat)
-export const TERRAIN_SEGMENTS = 199; // 200 x 200 sommets
 const AMPLITUDE = 3.5; // hauteur des collines : environ ±3,5 unités autour du niveau 0
 const BASE_FREQUENCY = 1 / 45; // taille des collines : une colline tous les ~45 unités
 const OCTAVES = 4; // couches de détails (chacune deux fois plus fine et deux fois plus basse)
@@ -39,8 +37,8 @@ const grad = (hash, x, y) => {
   }
 };
 
-/** Bruit de Perlin, résultat entre environ -1 et 1. */
-function perlin(x, y) {
+/** Bruit de Perlin, résultat entre environ -1 et 1 (réutilisé par biomes.js). */
+export function perlin(x, y) {
   const xi = Math.floor(x);
   const yi = Math.floor(y);
   const xf = x - xi;
@@ -59,7 +57,7 @@ function perlin(x, y) {
 }
 
 /** Plusieurs couches de bruit superposées (collines + petites ondulations). */
-function fbm(x, y) {
+export function fbm(x, y) {
   let sum = 0;
   let amp = 1;
   let freq = 1;
@@ -100,15 +98,29 @@ export function slopeAt(x, z) {
 }
 const _n = new THREE.Vector3();
 
-/** Maillage du terrain, en coordonnées du monde (x, hauteur, z). */
-export function createTerrainGeometry() {
-  const geometry = new THREE.PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE, TERRAIN_SEGMENTS, TERRAIN_SEGMENTS);
+/**
+ * Maillage d'un morceau de terrain carré, en coordonnées du monde (x, hauteur, z).
+ * Les normales sont calculées à partir du relief lui-même : pas de cassure de lumière
+ * à la jonction entre deux morceaux. Les coordonnées de texture suivent la position
+ * dans le monde (1 répétition de texture = `tileSize` unités), pour un raccord parfait.
+ */
+export function createChunkGeometry(x0, z0, size, segments, tileSize) {
+  const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
   geometry.rotateX(-Math.PI / 2);
+  geometry.translate(x0 + size / 2, 0, z0 + size / 2);
   const pos = geometry.attributes.position;
+  const nor = geometry.attributes.normal;
+  const uv = geometry.attributes.uv;
+  const n = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
-    pos.setY(i, heightAt(pos.getX(i), pos.getZ(i)));
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    pos.setY(i, heightAt(x, z));
+    normalAt(x, z, n);
+    nor.setXYZ(i, n.x, n.y, n.z);
+    uv.setXY(i, x / tileSize, z / tileSize);
   }
-  geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
+  geometry.computeBoundingBox();
   return geometry;
 }
