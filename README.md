@@ -36,6 +36,12 @@ Ouvrez ensuite l'adresse affichée (par défaut http://localhost:5173).
 - `src/biomes.js` : sous-bois dense, clairière, zone rocheuse (densités qui varient en douceur)
 - `src/ruins.js` : route envahie et ruines (murs effondrés avec collisions)
 - `src/region.js` : régions nommées (Forêt Noire) et changement d'ambiance
+- `src/noise.js` : bruit de Perlin à graine fixe (relief, biomes, route, rivière)
+- `src/water.js` : rivière (vallée, eau animée, berges, galets) et pont sur la route
+- `src/cave.js` : grotte cachée en zone rocheuse (torche, obscurité)
+- `src/clearing.js` : clairières lumineuses (rayons de soleil, herbe claire)
+- `src/signs.js` et `src/signs_data.js` : panneaux le long de la route (textes modifiables)
+- `src/minimap.js` : mini-carte (morceaux visités, route, rivière, pont)
 - `src/random.js` : générateur aléatoire à graine (décor identique à chaque lancement)
 - `src/trees.js` : arbres (InstancedMesh)
 - `src/rocks.js` : rochers (InstancedMesh), placés en évitant les troncs

@@ -42,6 +42,14 @@ export const PALETTE = {
   signWood: '#b09673', // bois des panneaux (clair et patiné, pour bien lire le texte)
   signText: '#1c150d', // lettres
 
+  // --- Mini-carte (minimap.js) ---
+  mapUnknown: 'rgba(22, 20, 17, 0.82)', // zones pas encore visitées
+  mapKnown: '#6d6656', // morceaux visités
+  mapRoad: '#cbbf9f',
+  mapRiver: '#5f8fa3',
+  mapBridge: '#5a3b1f',
+  mapPlayer: '#f0e6d0',
+
   // --- Ruines ---
   ruinStone: '#8b877e', // pierre des murs effondrés
 

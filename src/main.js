@@ -10,6 +10,7 @@ import { ChunkManager, chunkOf } from './chunks.js';
 import { Cave, findCaveSite, caveArea } from './cave.js';
 import { ClearingAmbience } from './clearing.js';
 import { signPlacements, signObstacles, createSigns } from './signs.js';
+import { Minimap } from './minimap.js';
 import { RegionAmbience } from './region.js';
 import { Animals } from './animals.js';
 import { DayNight } from './daynight.js';
@@ -77,6 +78,7 @@ function start(assets) {
   const region = new RegionAmbience({ scene, sky, sun, hemi, foliageMaterial: chunks.foliageMaterial });
   const clearing = new ClearingAmbience((x, z) => chunks.clearingAt(x, z), chunks.shaftMaterial);
   const sound = new SoundSystem();
+  const minimap = new Minimap();
 
   const input = new Input();
   const player = new Player(scene, assets.character);
@@ -94,7 +96,7 @@ function start(assets) {
   const clock = new THREE.Clock();
   const previous = new THREE.Vector3();
   // Pour les tests et le suivi : état du monde accessible depuis la console du navigateur
-  window.game = { chunks, player, region, cave, clearing };
+  window.game = { chunks, player, region, cave, clearing, minimap };
 
   function loop() {
     const frameTime = clock.getDelta();
@@ -110,6 +112,7 @@ function start(assets) {
 
     animals.update(dt, player.position);
     updateWater(dt);
+    minimap.update(dt, player.position, player.mesh.rotation.y);
     dayNight.update(dt, player.position);
     region.update(dt, player.position); // après le cycle jour/nuit : assombrit dans la Forêt Noire
     cave?.update(dt, player.position, { sun, hemi }); // obscurité et torche dans la grotte
