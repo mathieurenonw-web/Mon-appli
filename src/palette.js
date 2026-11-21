@@ -6,12 +6,19 @@ export const PALETTE = {
   // --- Sol ---
   ground: '#7a6f57', // gris-brun / ocre terne
   gridLine: '#665c47', // lignes de la grille, un peu plus foncées que le sol
+  groundTint: '#b4ab98', // teinte multipliée à la texture du sol (blanc = couleurs d'origine de la texture)
+  groundSaturation: 0.45, // saturation de la texture du sol (1 = d'origine, 0 = noir et blanc)
 
   // --- Arbres ---
   trunk: '#57463a',
   foliage: '#62704a', // vert fané
   // Variation d'un arbre à l'autre (en HSL, valeurs ajoutées au hasard entre -x et +x)
   foliageVariation: { hue: 0.035, saturation: 0.08, lightness: 0.06 },
+
+  // --- Végétation basse (herbes et buissons) ---
+  grass: '#6b7445',
+  bush: '#56633d',
+  vegetationVariation: { hue: 0.03, saturation: 0.08, lightness: 0.07 },
 
   // --- Rochers : gris froids, chaque rocher prend une de ces teintes ---
   rocks: ['#7b8087', '#6e747b', '#868b91', '#727a7d', '#7f8189'],

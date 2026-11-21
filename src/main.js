@@ -13,6 +13,8 @@ import { DayNight } from './daynight.js';
 import { SoundSystem } from './sound.js';
 import { Sky } from './sky.js';
 import { PostProcessing } from './postprocessing.js';
+import { loadAssets } from './assets.js';
+import { createVegetation } from './vegetation.js';
 
 // Point d'entrée : crée le rendu, assemble les éléments et lance la boucle de jeu.
 
@@ -23,55 +25,68 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
-const scene = new THREE.Scene();
-const { sun, hemi } = createWorld(scene, renderer);
+// Les modèles et textures sont chargés avant de construire le monde.
+// En cas de problème, `assets` contient des listes vides et les formes simples sont utilisées.
+loadAssets()
+  .catch((err) => {
+    console.warn('[assets] chargement impossible, formes simples utilisées :', err);
+    return { trees: [], rocks: [], grass: [], bushes: [], ground: null, problems: [] };
+  })
+  .then(start);
 
-// Décor : un seul générateur à graine, utilisé d'abord par les arbres puis par les
-// rochers. La disposition est ainsi identique à chaque lancement.
-const rng = createRandom(WORLD_SEED);
-const { trunks } = createTrees(scene, rng);
-const { rocks } = createRocks(scene, rng, trunks);
-const colliders = new Colliders(trunks, rocks);
-const animals = new Animals(scene, rng, colliders);
+function start(assets) {
+  const scene = new THREE.Scene();
+  const { sun, hemi } = createWorld(scene, renderer, assets.ground);
 
-const sky = new Sky(scene);
-const dayNight = new DayNight(sky, { sun, hemi });
-const sound = new SoundSystem();
+  // Décor : un seul générateur à graine, utilisé d'abord par les arbres puis par les
+  // rochers. La disposition est ainsi identique à chaque lancement.
+  const rng = createRandom(WORLD_SEED);
+  const { trunks } = createTrees(scene, rng, assets.trees);
+  const { rocks } = createRocks(scene, rng, trunks, assets.rocks);
+  const colliders = new Colliders(trunks, rocks);
+  const animals = new Animals(scene, rng, colliders);
+  // Herbes et buissons : décoratifs, sans collision, avec leur propre générateur
+  createVegetation(scene, assets, trunks, rocks);
 
-const input = new Input();
-const player = new Player(scene);
-const tpCamera = new ThirdPersonCamera(window.innerWidth / window.innerHeight);
-tpCamera.snapTo(player.position);
+  const sky = new Sky(scene);
+  const dayNight = new DayNight(sky, { sun, hemi });
+  const sound = new SoundSystem();
 
-const post = new PostProcessing(renderer, scene, tpCamera.camera);
+  const input = new Input();
+  const player = new Player(scene);
+  const tpCamera = new ThirdPersonCamera(window.innerWidth / window.innerHeight);
+  tpCamera.snapTo(player.position);
 
-window.addEventListener('resize', () => {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  tpCamera.setAspect(window.innerWidth / window.innerHeight);
-  post.setSize(window.innerWidth, window.innerHeight);
-});
+  const post = new PostProcessing(renderer, scene, tpCamera.camera);
 
-const clock = new THREE.Clock();
-
-function loop() {
-  const frameTime = clock.getDelta();
-  // dt plafonné pour éviter un grand saut après un changement d'onglet
-  const dt = Math.min(frameTime, 0.1);
-
-  player.update(dt, input, colliders);
-  animals.update(dt, player.position);
-  dayNight.update(dt, player.position);
-  tpCamera.update(dt, player.position);
-  sound.update(dt, {
-    walking: player.isMoving && player.grounded,
-    jumped: player.jumped,
-    landed: player.landed,
-    daylight: dayNight.daylight,
+  window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    tpCamera.setAspect(window.innerWidth / window.innerHeight);
+    post.setSize(window.innerWidth, window.innerHeight);
   });
 
-  sky.update(tpCamera.camera);
-  post.render(frameTime);
-  requestAnimationFrame(loop);
-}
+  const clock = new THREE.Clock();
 
-loop();
+  function loop() {
+    const frameTime = clock.getDelta();
+    // dt plafonné pour éviter un grand saut après un changement d'onglet
+    const dt = Math.min(frameTime, 0.1);
+
+    player.update(dt, input, colliders);
+    animals.update(dt, player.position);
+    dayNight.update(dt, player.position);
+    tpCamera.update(dt, player.position);
+    sound.update(dt, {
+      walking: player.isMoving && player.grounded,
+      jumped: player.jumped,
+      landed: player.landed,
+      daylight: dayNight.daylight,
+    });
+
+    sky.update(tpCamera.camera);
+    post.render(frameTime);
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+}

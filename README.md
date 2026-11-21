@@ -41,6 +41,9 @@ Ouvrez ensuite l'adresse affichée (par défaut http://localhost:5173).
 - `src/palette.js` : toutes les couleurs du jeu (sol, arbres, rochers, ciel, lumières)
 - `src/sky.js` : ciel en dégradé et brouillard
 - `src/postprocessing.js` : bloom, tonemapping ACES, contraste et saturation
+- `src/assets.js` : chargement des modèles 3D et textures (liste des fichiers utilisés en haut du fichier)
+- `src/vegetation.js` : herbes et buissons décoratifs (sans collision)
+- `public/assets/` : modèles (Kenney Nature Kit) et textures (Poly Haven, Dirt Floor)
 - `src/player.js` : personnage, déplacement et rotation douce
 - `src/camera.js` : caméra à la troisième personne lissée
 - `src/input.js` : lecture du clavier
