@@ -9,6 +9,7 @@ import { Colliders } from './collisions.js';
 import { ChunkManager, chunkOf } from './chunks.js';
 import { Cave, findCaveSite, caveArea } from './cave.js';
 import { ClearingAmbience } from './clearing.js';
+import { signPlacements, signObstacles, createSigns } from './signs.js';
 import { RegionAmbience } from './region.js';
 import { Animals } from './animals.js';
 import { DayNight } from './daynight.js';
@@ -59,6 +60,12 @@ function start(assets) {
     chunks.reserve(caveArea(caveSite));
     chunks.addStructures(cave.colliders);
   }
+  // Panneaux le long de la route (textes : signs_data.js)
+  const signs = signPlacements();
+  const signObs = signObstacles(signs);
+  chunks.addStructures({ trunks: signObs.trunks });
+  signObs.areas.forEach((a) => chunks.reserve(a));
+  createSigns(scene, signs);
   chunks.update(new THREE.Vector3(0, 0, 0), true);
   scene.add(createBridgeMesh());
   // On marche sur le terrain ou sur le pont ; l'eau de la rivière repousse vers la berge

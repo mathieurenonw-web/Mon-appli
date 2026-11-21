@@ -38,6 +38,10 @@ export const PALETTE = {
   lightShaft: '#fff1c8', // rayons de soleil
   clearingGrassLift: 0.12, // l'herbe des clairières est plus claire (luminosité ajoutée)
 
+  // --- Panneaux (signs.js) ---
+  signWood: '#b09673', // bois des panneaux (clair et patiné, pour bien lire le texte)
+  signText: '#1c150d', // lettres
+
   // --- Ruines ---
   ruinStone: '#8b877e', // pierre des murs effondrés
 
