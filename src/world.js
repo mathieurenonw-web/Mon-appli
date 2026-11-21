@@ -1,8 +1,11 @@
 import * as THREE from 'three';
+import { PALETTE } from './palette.js';
 
 // Le décor : sol plat avec grille de repère, et éclairage.
+// (Le ciel et le brouillard sont gérés par sky.js.)
 
 const GROUND_SIZE = 200; // en unités ; 1 case de grille = 1 unité
+const SHADOW_AREA = 30; // côté (en unités) de la zone d'ombres nettes centrée sur le personnage
 
 /** Texture d'une case : fond uni + bordure fine. Répétée, elle forme la grille. */
 function createGridTexture(renderer) {
@@ -11,9 +14,9 @@ function createGridTexture(renderer) {
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#6a9a5b'; // couleur du sol
+  ctx.fillStyle = PALETTE.ground;
   ctx.fillRect(0, 0, size, size);
-  ctx.strokeStyle = '#4b7340'; // couleur des lignes
+  ctx.strokeStyle = PALETTE.gridLine;
   ctx.lineWidth = 4;
   ctx.strokeRect(0, 0, size, size);
 
@@ -26,9 +29,6 @@ function createGridTexture(renderer) {
 }
 
 export function createWorld(scene, renderer) {
-  scene.background = new THREE.Color(0x87b5e0);
-  scene.fog = new THREE.Fog(0x87b5e0, 40, 120);
-
   // Sol uni quadrillé
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
@@ -38,17 +38,20 @@ export function createWorld(scene, renderer) {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Lumière ambiante ciel/sol : éclaire doucement toutes les faces
-  const hemi = new THREE.HemisphereLight(0xdfefff, 0x4a5a3a, 1.2);
+  // Lumière ambiante ciel/sol : éclaire doucement toutes les faces (couleurs : daynight.js)
+  const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 1);
   scene.add(hemi);
 
   // Lumière directionnelle type « soleil », avec ombres (position gérée par daynight.js)
   const sun = new THREE.DirectionalLight(0xffffff, 2);
   sun.castShadow = true;
+  // Carte d'ombre 2048 x 2048 couvrant SHADOW_AREA unités autour du personnage :
+  // environ 1,5 cm par pixel, net et sans coût notable. Bords adoucis par PCFSoftShadowMap (main.js).
   sun.shadow.mapSize.set(2048, 2048);
-  const s = 20;
-  Object.assign(sun.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 1, far: 60 });
-  sun.shadow.bias = -0.0005;
+  const s = SHADOW_AREA / 2;
+  Object.assign(sun.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 1, far: 50 });
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.02; // évite les rayures d'ombre (« acné ») sur les surfaces en biais
   scene.add(sun);
   scene.add(sun.target);
 

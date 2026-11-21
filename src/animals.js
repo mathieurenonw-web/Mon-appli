@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PLAYER_SPEED } from './player.js';
+import { PALETTE } from './palette.js';
 
 // Petits lapins : ils s'enfuient quand le personnage approche, puis reviennent
 // lentement à leur place quand il est parti. Ils respectent les collisions.
@@ -64,10 +65,9 @@ export class Animals {
     this.colliders = colliders;
     this.list = [];
 
-    const furColors = [0xb08a64, 0x8f7a66, 0xd8cfc4, 0x7d6450];
-    const furMaterials = furColors.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }));
-    const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.9 });
-    const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    const furMaterials = PALETTE.rabbitFur.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }));
+    const whiteMaterial = new THREE.MeshStandardMaterial({ color: PALETTE.rabbitTail, roughness: 0.9 });
+    const darkMaterial = new THREE.MeshStandardMaterial({ color: PALETTE.rabbitEyes });
 
     const test = new THREE.Vector3();
     let attempts = 0;
@@ -81,7 +81,9 @@ export class Animals {
       colliders.pushOut(test, RADIUS, HEIGHT);
       if (test.x !== x || test.z !== z) continue;
 
-      const mesh = createRabbitMesh(furMaterials[rng.int(furMaterials.length)], whiteMaterial, darkMaterial);
+      // un seul tirage, quelle que soit la taille de la palette (disposition stable)
+      const fur = furMaterials[Math.floor(rng.next() * furMaterials.length)];
+      const mesh = createRabbitMesh(fur, whiteMaterial, darkMaterial);
       mesh.position.set(x, 0, z);
       mesh.rotation.y = rng.range(0, Math.PI * 2);
       scene.add(mesh);

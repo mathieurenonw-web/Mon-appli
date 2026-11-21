@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { PALETTE } from './palette.js';
 
 // Rochers : des dodécaèdres légèrement déformés, gris ou brun-gris.
 // Comme pour les arbres, on utilise des InstancedMesh. Une instance partage la forme
@@ -14,8 +15,6 @@ const AREA = 45; // même zone que les arbres
 const SPAWN_CLEAR_RADIUS = 5; // aucun rocher autour du point de départ du joueur
 const TRUNK_MARGIN = 0.3; // espace minimal entre un rocher et un tronc
 const MAX_TILT = 0.35; // inclinaison maximale, en radians (~20°)
-
-const COLORS = [0x8a8a8a, 0x777777, 0x8c8279, 0x7a7068, 0x9a948c];
 
 /** Dodécaèdre de rayon 1 dont chaque sommet est déplacé un peu au hasard. */
 function createRockGeometry(rng) {
@@ -66,7 +65,7 @@ export function createRocks(scene, rng, trunks = []) {
       z,
       size,
       variant: rng.int(VARIANT_COUNT),
-      color: COLORS[rng.int(COLORS.length)],
+      colorPick: rng.next(), // un seul tirage, quelle que soit la taille de la palette
       // légèrement aplati et étiré pour un aspect plus naturel
       stretch: new THREE.Vector3(rng.range(0.9, 1.3), rng.range(0.55, 0.85), rng.range(0.9, 1.3)),
       rotation: new THREE.Euler(rng.range(-MAX_TILT, MAX_TILT), rng.range(0, Math.PI * 2), rng.range(-MAX_TILT, MAX_TILT)),
@@ -97,7 +96,8 @@ export function createRocks(scene, rng, trunks = []) {
       quaternion.setFromEuler(rock.rotation);
       matrix.compose(position, quaternion, scale);
       mesh.setMatrixAt(i, matrix);
-      mesh.setColorAt(i, color.setHex(rock.color));
+      const rockColors = PALETTE.rocks;
+      mesh.setColorAt(i, color.set(rockColors[Math.floor(rock.colorPick * rockColors.length)]));
 
       // Mesures pour les collisions, sur les sommets réels du rocher transformé
       let top = 0;

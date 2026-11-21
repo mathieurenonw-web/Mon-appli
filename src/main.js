@@ -11,6 +11,8 @@ import { Colliders } from './collisions.js';
 import { Animals } from './animals.js';
 import { DayNight } from './daynight.js';
 import { SoundSystem } from './sound.js';
+import { Sky } from './sky.js';
+import { PostProcessing } from './postprocessing.js';
 
 // Point d'entrée : crée le rendu, assemble les éléments et lance la boucle de jeu.
 
@@ -32,7 +34,8 @@ const { rocks } = createRocks(scene, rng, trunks);
 const colliders = new Colliders(trunks, rocks);
 const animals = new Animals(scene, rng, colliders);
 
-const dayNight = new DayNight(scene, { sun, hemi });
+const sky = new Sky(scene);
+const dayNight = new DayNight(sky, { sun, hemi });
 const sound = new SoundSystem();
 
 const input = new Input();
@@ -40,9 +43,12 @@ const player = new Player(scene);
 const tpCamera = new ThirdPersonCamera(window.innerWidth / window.innerHeight);
 tpCamera.snapTo(player.position);
 
+const post = new PostProcessing(renderer, scene, tpCamera.camera);
+
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   tpCamera.setAspect(window.innerWidth / window.innerHeight);
+  post.setSize(window.innerWidth, window.innerHeight);
 });
 
 const clock = new THREE.Clock();
@@ -62,7 +68,8 @@ function loop() {
     daylight: dayNight.daylight,
   });
 
-  renderer.render(scene, tpCamera.camera);
+  sky.update(tpCamera.camera);
+  post.render();
   requestAnimationFrame(loop);
 }
 

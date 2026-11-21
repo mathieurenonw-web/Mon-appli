@@ -38,6 +38,9 @@ Ouvrez ensuite l'adresse affichée (par défaut http://localhost:5173).
 - `src/animals.js` : lapins qui fuient le personnage puis reviennent
 - `src/daynight.js` : cycle jour/nuit (~3 minutes)
 - `src/sound.js` : bruitages générés (vent, pas, saut, oiseaux)
+- `src/palette.js` : toutes les couleurs du jeu (sol, arbres, rochers, ciel, lumières)
+- `src/sky.js` : ciel en dégradé et brouillard
+- `src/postprocessing.js` : bloom, tonemapping ACES, contraste et saturation
 - `src/player.js` : personnage, déplacement et rotation douce
 - `src/camera.js` : caméra à la troisième personne lissée
 - `src/input.js` : lecture du clavier

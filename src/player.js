@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PALETTE } from './palette.js';
 
 // Le personnage placeholder : une capsule avec un petit « nez » pour voir où il regarde.
 
@@ -21,7 +22,7 @@ export class Player {
     const length = 1;
     const body = new THREE.Mesh(
       new THREE.CapsuleGeometry(radius, length, 8, 16),
-      new THREE.MeshStandardMaterial({ color: 0xe0703a, roughness: 0.6 })
+      new THREE.MeshStandardMaterial({ color: PALETTE.player, roughness: 0.6 })
     );
     body.position.y = radius + length / 2; // posé sur le sol
     body.castShadow = true;
@@ -30,7 +31,7 @@ export class Player {
     // Repère visuel de l'avant du personnage (direction +Z locale)
     const nose = new THREE.Mesh(
       new THREE.BoxGeometry(0.25, 0.15, 0.3),
-      new THREE.MeshStandardMaterial({ color: 0x222222 })
+      new THREE.MeshStandardMaterial({ color: PALETTE.playerNose })
     );
     nose.position.set(0, 1.35, radius);
     nose.castShadow = true;

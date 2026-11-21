@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { PALETTE } from './palette.js';
+import { createRandom, WORLD_SEED } from './random.js';
 
 // Arbres simples : un tronc (cylindre) et un feuillage (cône).
 // Tous les troncs partagent un seul InstancedMesh, tous les feuillages aussi :
@@ -41,12 +43,12 @@ export function createTrees(scene, rng) {
 
   const trunks = new THREE.InstancedMesh(
     trunkGeometry,
-    new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.9 }),
+    new THREE.MeshStandardMaterial({ color: PALETTE.trunk, roughness: 0.9 }),
     trees.length
   );
   const foliage = new THREE.InstancedMesh(
     foliageGeometry,
-    new THREE.MeshStandardMaterial({ color: 0x2f6b34, roughness: 0.8, flatShading: true }),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, flatShading: true }),
     trees.length
   );
 
@@ -57,6 +59,14 @@ export function createTrees(scene, rng) {
   const scale = new THREE.Vector3();
   const up = new THREE.Vector3(0, 1, 0);
 
+  // Teinte du feuillage propre à chaque arbre. Générateur séparé (graine dérivée) :
+  // les tirages de couleur ne décalent pas la disposition des arbres, rochers et animaux.
+  const colorRng = createRandom(WORLD_SEED + 1);
+  const baseColor = new THREE.Color(PALETTE.foliage);
+  const hsl = baseColor.getHSL({ h: 0, s: 0, l: 0 });
+  const v = PALETTE.foliageVariation;
+  const color = new THREE.Color();
+
   trees.forEach((tree, i) => {
     position.set(tree.x, 0, tree.z);
     quaternion.setFromAxisAngle(up, tree.rotation);
@@ -64,7 +74,14 @@ export function createTrees(scene, rng) {
     matrix.compose(position, quaternion, scale);
     trunks.setMatrixAt(i, matrix);
     foliage.setMatrixAt(i, matrix);
+    color.setHSL(
+      hsl.h + colorRng.range(-v.hue, v.hue),
+      THREE.MathUtils.clamp(hsl.s + colorRng.range(-v.saturation, v.saturation), 0, 1),
+      THREE.MathUtils.clamp(hsl.l + colorRng.range(-v.lightness, v.lightness), 0, 1)
+    );
+    foliage.setColorAt(i, color);
   });
+  foliage.instanceColor.needsUpdate = true;
 
   for (const mesh of [trunks, foliage]) {
     mesh.castShadow = true;

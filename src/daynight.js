@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PALETTE } from './palette.js';
 
 // Cycle jour / nuit : la couleur du ciel et les lumières passent doucement par
 // lever → jour → coucher → nuit → lever. Un cycle complet dure CYCLE_DURATION secondes.
@@ -7,18 +8,11 @@ export const CYCLE_DURATION = 180; // ~3 minutes réelles
 const START_TIME = 0.1; // on commence en début de journée (0 = lever, 0.5 = coucher)
 const LIGHT_DISTANCE = 20;
 
-// Étapes du cycle (t entre 0 et 1). Entre deux étapes, tout est interpolé en douceur.
-const KEYS = [
-  { t: 0.0, sky: 0xe9a27f, light: 0xffb47a, lightI: 0.6, hemiSky: 0xffd9bf, hemiGround: 0x4d4a3a, hemiI: 0.75 }, // lever
-  { t: 0.08, sky: 0x87b5e0, light: 0xffffff, lightI: 2.0, hemiSky: 0xdfefff, hemiGround: 0x4a5a3a, hemiI: 1.2 }, // jour
-  { t: 0.42, sky: 0x87b5e0, light: 0xffffff, lightI: 2.0, hemiSky: 0xdfefff, hemiGround: 0x4a5a3a, hemiI: 1.2 }, // jour
-  { t: 0.5, sky: 0xe4845a, light: 0xff9a5c, lightI: 0.6, hemiSky: 0xffc2a0, hemiGround: 0x4a3f35, hemiI: 0.75 }, // coucher
-  { t: 0.58, sky: 0x111d38, light: 0x9db4ff, lightI: 0.5, hemiSky: 0x7385b8, hemiGround: 0x222a36, hemiI: 0.6 }, // nuit
-  { t: 0.92, sky: 0x111d38, light: 0x9db4ff, lightI: 0.5, hemiSky: 0x7385b8, hemiGround: 0x222a36, hemiI: 0.6 }, // nuit
-  { t: 1.0, sky: 0xe9a27f, light: 0xffb47a, lightI: 0.6, hemiSky: 0xffd9bf, hemiGround: 0x4d4a3a, hemiI: 0.75 }, // lever
-].map((k) => ({
+// Étapes du cycle (couleurs et intensités dans palette.js). Entre deux étapes, tout est interpolé en douceur.
+const KEYS = PALETTE.dayNight.map((k) => ({
   ...k,
-  sky: new THREE.Color(k.sky),
+  skyTop: new THREE.Color(k.skyTop),
+  horizon: new THREE.Color(k.horizon),
   light: new THREE.Color(k.light),
   hemiSky: new THREE.Color(k.hemiSky),
   hemiGround: new THREE.Color(k.hemiGround),
@@ -31,16 +25,18 @@ const smoothstep = (e0, e1, x) => {
 
 export class DayNight {
   /**
-   * @param {THREE.Scene} scene  (son fond et son brouillard changent de couleur)
+   * @param {import('./sky.js').Sky} sky  ciel dégradé et brouillard
    * @param {{ sun: THREE.DirectionalLight, hemi: THREE.HemisphereLight }} lights
    */
-  constructor(scene, { sun, hemi }) {
-    this.scene = scene;
+  constructor(sky, { sun, hemi }) {
+    this.sky = sky;
     this.sun = sun;
     this.hemi = hemi;
     this.time = START_TIME; // position dans le cycle, entre 0 et 1
     this.daylight = 1; // 1 = plein jour, 0 = nuit (utilisé par sound.js pour les oiseaux)
     this._dir = new THREE.Vector3();
+    this._top = new THREE.Color();
+    this._horizon = new THREE.Color();
   }
 
   update(dt, playerPos) {
@@ -54,8 +50,9 @@ export class DayNight {
     const b = KEYS[i + 1];
     const u = smoothstep(0, 1, (t - a.t) / (b.t - a.t));
 
-    this.scene.background.lerpColors(a.sky, b.sky, u);
-    this.scene.fog.color.copy(this.scene.background);
+    this._top.lerpColors(a.skyTop, b.skyTop, u);
+    this._horizon.lerpColors(a.horizon, b.horizon, u);
+    this.sky.setColors(this._top, this._horizon);
     this.hemi.color.lerpColors(a.hemiSky, b.hemiSky, u);
     this.hemi.groundColor.lerpColors(a.hemiGround, b.hemiGround, u);
     this.hemi.intensity = THREE.MathUtils.lerp(a.hemiI, b.hemiI, u);
