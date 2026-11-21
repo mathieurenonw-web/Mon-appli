@@ -73,14 +73,15 @@ function createTexturedGroundMaterial(renderer, dirt, forest) {
       forestScale: { value: hasForest ? 1 : 0.63 }, // version de repli : autre échelle, pour se distinguer
       slopeRange: { value: new THREE.Vector2(SLOPE_DIRT_START, SLOPE_DIRT_FULL) },
       roadTint: { value: new THREE.Color(PALETTE.roadTint).multiplyScalar(ROAD_BRIGHTNESS) },
+      bankTint: { value: new THREE.Color(PALETTE.bankTint) },
     });
 
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float roadMask;\nvarying vec2 vGroundPos;\nvarying float vSlope;\nvarying float vRoad;')
+      .replace('#include <common>', '#include <common>\nattribute float roadMask;\nattribute float bankMask;\nvarying vec2 vGroundPos;\nvarying float vSlope;\nvarying float vRoad;\nvarying float vBank;')
       .replace(
         '#include <begin_vertex>',
         // Le maillage est en coordonnées du monde : position.xz = position au sol, normal.y = pente
-        '#include <begin_vertex>\nvGroundPos = position.xz;\nvSlope = 1.0 - normal.y;\nvRoad = roadMask;'
+        '#include <begin_vertex>\nvGroundPos = position.xz;\nvSlope = 1.0 - normal.y;\nvRoad = roadMask;\nvBank = bankMask;'
       );
 
     shader.fragmentShader = shader.fragmentShader
@@ -90,7 +91,9 @@ function createTexturedGroundMaterial(renderer, dirt, forest) {
         varying vec2 vGroundPos;
         varying float vSlope;
         varying float vRoad;
+        varying float vBank;
         uniform vec3 roadTint;
+        uniform vec3 bankTint;
         uniform float gridStrength;
         uniform float groundSaturation;
         uniform sampler2D forestMap;
@@ -121,6 +124,9 @@ function createTexturedGroundMaterial(renderer, dirt, forest) {
           float dirtLuma = dot( dirtColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) );
           vec3 roadColor = mix( vec3( dirtLuma ), dirtColor.rgb, 0.15 ) * roadTint;
           sampledDiffuseColor.rgb = mix( sampledDiffuseColor.rgb, roadColor, vRoad );
+          // Berges de la rivière : terre humide, plus sombre
+          vec3 bankColor = mix( vec3( dirtLuma ), dirtColor.rgb, 0.5 ) * bankTint;
+          sampledDiffuseColor.rgb = mix( sampledDiffuseColor.rgb, bankColor, vBank * ( 1.0 - vRoad ) );
           // Grandes taches plus claires / plus sombres (quelques dizaines d'unités)
           vec2 w = vGroundPos * 0.045;
           float macro = 0.88 + 0.12 * sin( w.x * 1.3 + sin( w.y * 0.7 ) ) * sin( w.y * 1.1 + 1.7 );

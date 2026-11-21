@@ -23,6 +23,12 @@ export const PALETTE = {
   bush: '#56633d',
   vegetationVariation: { hue: 0.03, saturation: 0.08, lightness: 0.07 },
 
+  // --- Rivière (water.js) ---
+  water: '#3f5c66', // eau (semi-transparente)
+  bankTint: '#8a8274', // terre humide des berges
+  pebbles: ['#7f7d77', '#6e6c67', '#8a867d', '#77726b'], // galets
+  bridgeWood: '#6e5a44', // bois du pont
+
   // --- Ruines ---
   ruinStone: '#8b877e', // pierre des murs effondrés
 

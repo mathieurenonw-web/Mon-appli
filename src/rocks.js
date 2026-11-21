@@ -6,6 +6,7 @@ import { heightAt, slopeAt, normalAt } from './terrain.js';
 import { densitiesAt } from './biomes.js';
 import { isOnRoad } from './ruins.js';
 import { makeRockCollider } from './collisions.js';
+import { isNearWater } from './water.js';
 
 // Rochers : des modèles 3D (assets.js) ou, à défaut, des dodécaèdres légèrement déformés.
 // Quelques formes différentes (VARIANT_COUNT) ; avec la taille, l'étirement, la rotation
@@ -72,6 +73,7 @@ export function placeRocks(x0, z0, size, rng, trunks = [], ruins = []) {
     if (keepRoll > densitiesAt(x, z).rocks / MAX_DENSITY) continue;
     if (Math.hypot(x, z) < SPAWN_CLEAR_RADIUS + rock.size) continue;
     if (isOnRoad(x, z, 1.2 + rock.size)) continue;
+    if (isNearWater(x, z, rock.size)) continue;
     if (ruins.some((r) => Math.hypot(r.x - x, r.z - z) < r.radius + rock.size)) continue;
     if (trunks.some((t) => Math.hypot(t.x - x, t.z - z) < t.r + rock.size + TRUNK_MARGIN)) continue;
     if (rocks.some((r) => Math.hypot(r.x - x, r.z - z) < r.size + rock.size)) continue;

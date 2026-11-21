@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { heightAt, slopeAt, perlin } from './terrain.js';
+import { heightAt, slopeAt } from './terrain.js';
+import { perlin } from './noise.js';
+import { isNearWater } from './water.js';
 import { PALETTE } from './palette.js';
 
 // Route envahie et ruines de bâtiments.
@@ -87,6 +89,7 @@ export function ruinSitesInChunk(x0, z0, size, rng) {
       Math.hypot(x, z) > SPAWN_CLEAR &&
       slopeAt(x, z) < MAX_SLOPE &&
       !isOnRoad(x, z, 7) &&
+      !isNearWater(x, z, 8) &&
       !sites.some((s) => Math.hypot(s.x - x, s.z - z) < 20);
     if (ok) sites.push({ x, z });
   }

@@ -34,11 +34,14 @@ export class Colliders {
   /**
    * @param {{ near: (x: number, z: number) => { trunks: object[], rocks: object[], walls: object[] } }} source
    *   objets proches du point (x, z) ; rochers déjà préparés par makeRockCollider
-   * @param {(x: number, z: number) => number} heightAt  hauteur du terrain
+   * @param {(x: number, z: number) => number} heightAt  hauteur du sol où l'on marche
+   * @param {{ pushOutOfZones?: (pos: THREE.Vector3, radius: number) => void }} [options]
+   *   zones interdites (l'eau de la rivière), dont on est repoussé
    */
-  constructor(source, heightAt = () => 0) {
+  constructor(source, heightAt = () => 0, { pushOutOfZones = null } = {}) {
     this.source = source;
     this.heightAt = heightAt;
+    this.pushOutOfZones = pushOutOfZones;
   }
 
   /** Collisions à partir de simples listes (tests, petits mondes). */
@@ -78,6 +81,8 @@ export class Colliders {
       if (feet >= wall.top || pos.y + height <= wall.base) continue; // au-dessus (ou dessous) du mur
       pushFromBox(pos, wall, radius);
     }
+    // Zones interdites (eau) : on est repoussé vers la berge
+    this.pushOutOfZones?.(pos, radius);
     // Les troncs en dernier : ils ont toujours le dernier mot (jamais traversés)
     for (const t of near.trunks) {
       pushFromCircle(pos, t.x, t.z, t.radius + radius);

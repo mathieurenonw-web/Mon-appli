@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { perlin } from './terrain.js';
+import { perlin } from './noise.js';
 import { regionFactorAt } from './region.js';
 
 // Biomes : chaque endroit du monde a une « personnalité » donnée par deux bruits lents :

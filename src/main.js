@@ -15,6 +15,7 @@ import { Sky } from './sky.js';
 import { PostProcessing } from './postprocessing.js';
 import { loadAssets } from './assets.js';
 import { heightAt } from './terrain.js';
+import { walkHeightAt, pushOutOfWater, bridgeWalls, createBridgeMesh, updateWater } from './water.js';
 
 // Point d'entrée : crée le rendu, assemble les éléments et lance la boucle de jeu.
 
@@ -40,9 +41,13 @@ function start(assets) {
 
   // Monde découpé en morceaux : tous ceux autour du départ sont chargés d'un coup,
   // ensuite un seul morceau par image (chunks.js)
-  const chunks = new ChunkManager(scene, groundMaterial, assets);
+  // Obstacles uniques placés à la main : garde-corps du pont
+  const structures = { walls: bridgeWalls() };
+  const chunks = new ChunkManager(scene, groundMaterial, assets, structures);
   chunks.update(new THREE.Vector3(0, 0, 0), true);
-  const colliders = new Colliders(chunks, heightAt);
+  scene.add(createBridgeMesh());
+  // On marche sur le terrain ou sur le pont ; l'eau de la rivière repousse vers la berge
+  const colliders = new Colliders(chunks, walkHeightAt, { pushOutOfZones: pushOutOfWater });
   const animals = new Animals(scene, createRandom(WORLD_SEED + 5), colliders);
 
   const sky = new Sky(scene);
@@ -81,6 +86,7 @@ function start(assets) {
     chunks.update(player.position);
 
     animals.update(dt, player.position);
+    updateWater(dt);
     dayNight.update(dt, player.position);
     region.update(dt, player.position); // après le cycle jour/nuit : assombrit dans la Forêt Noire
     tpCamera.update(dt, player.position, heightAt);

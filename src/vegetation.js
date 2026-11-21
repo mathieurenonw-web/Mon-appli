@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { heightAt, normalAt } from './terrain.js';
 import { densitiesAt } from './biomes.js';
 import { roadDistance, isOnRoad, ROAD } from './ruins.js';
+import { riverDistance, RIVER } from './water.js';
 
 // Végétation basse : touffes d'herbe et buissons, purement décoratifs.
 // - Aucune collision : le personnage et les animaux passent au travers.
@@ -85,6 +86,9 @@ export function placeVegetation(x0, z0, size, rng, obstacles = [], ruins = []) {
       const density = type === 'grass' ? dens.grass * roadGrassFactor(x, z) : dens.bushes;
       if (keepRoll > density / max) continue;
       if (type === 'bush' && isOnRoad(x, z, 0.8)) continue;
+      // Pas de plante dans l'eau ; pas de buisson sur les berges (l'herbe, elle, y pousse un peu)
+      const dw = riverDistance(x, z);
+      if (dw < RIVER.halfWidth + 0.6 || (type === 'bush' && dw < RIVER.halfWidth + RIVER.bank + 0.5)) continue;
       if (!isFree(x, z)) continue;
       plants.push(plant);
     }

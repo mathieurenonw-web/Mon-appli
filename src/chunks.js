@@ -7,6 +7,7 @@ import { roadMaskAt, ruinSitesInChunk, buildRuin } from './ruins.js';
 import { createTreeKinds, placeTrees, placementRadius, treeInstances } from './trees.js';
 import { createRockVariants, placeRocks, rockInstances } from './rocks.js';
 import { createVegetationKinds, placeVegetation, vegetationInstances } from './vegetation.js';
+import { createWaterGeometry, createWaterMaterial, bankMaskAt, placePebbles, pebbleInstances } from './water.js';
 
 // Monde découpé en morceaux carrés (chunks) générés autour du personnage.
 //
@@ -123,11 +124,15 @@ export class ChunkManager {
    * @param {THREE.Scene} scene
    * @param {THREE.Material} groundMaterial  matériau du sol (world.js)
    * @param {object} assets  modèles chargés (assets.js)
+   * @param {{ trunks?: object[], rocks?: object[], walls?: object[] }} [structures]  obstacles
+   *   uniques placés à la main (garde-corps du pont, grotte, panneaux…), rangés par morceau
    */
-  constructor(scene, groundMaterial, assets = {}) {
+  constructor(scene, groundMaterial, assets = {}, structures = {}) {
+    this.structures = { trunks: [], rocks: [], walls: [], ...structures };
     this.scene = scene;
     this.groundMaterial = groundMaterial;
-    this.cache = { ruins: new Map(), trees: new Map(), rocks: new Map(), plants: new Map(), data: new Map(), near: new Map() };
+    this.cache = { ruins: new Map(), trees: new Map(), rocks: new Map(), plants: new Map(), pebbles: new Map(), data: new Map(), near: new Map() };
+    this.waterMaterial = createWaterMaterial();
     this.loaded = new Map(); // morceaux affichés : clé → { cx, cz, mesh, data }
     this.playerChunk = null;
     this.dirty = true;
@@ -157,6 +162,9 @@ export class ChunkManager {
     this.vegKinds.grass.forEach((g, i) => pool(`grass${i}`, g.geometry, grassMaterial, 'grass', true, false));
     this.vegKinds.bushes.forEach((b, i) => pool(`bush${i}`, b.geometry, bushMaterial, 'tree', true));
     pool('ruin', block, ruinMaterial, 'always', true);
+    // Galets un peu assombris : petites facettes très exposées au soleil
+    const pebbleMaterial = new THREE.MeshStandardMaterial({ color: 0x8c8c8c, roughness: 0.9, flatShading: true });
+    pool('pebble', new THREE.IcosahedronGeometry(1, 0), pebbleMaterial, 'grass', true, false);
   }
 
   // --- Génération (fonctions pures, mises en cache) ---------------------------
@@ -211,6 +219,21 @@ export class ChunkManager {
     });
   }
 
+  pebblesOf(cx, cz) {
+    return this.#cached(this.cache.pebbles, cx, cz, () => {
+      const { x0, z0 } = chunkOrigin(cx, cz);
+      return placePebbles(x0, z0, CHUNK_SIZE, createRandom(chunkSeed(cx, cz, 5)));
+    });
+  }
+
+  /** Obstacles uniques (pont, grotte, panneaux) dont le centre est dans ce morceau. */
+  #structuresIn(cx, cz, list) {
+    return list.filter((o) => {
+      const c = chunkOf(o.x, o.z);
+      return c.cx === cx && c.cz === cz;
+    });
+  }
+
   /** Données complètes d'un morceau : instances à afficher et obstacles pour les collisions. */
   dataOf(cx, cz) {
     return this.#cached(this.cache.data, cx, cz, () => {
@@ -224,11 +247,17 @@ export class ChunkManager {
       const trunks = treeInstances(this.treesOf(cx, cz), this.treeKinds, lists.add);
       const rocks = rockInstances(this.rocksOf(cx, cz), this.rockVariants, lists.add);
       vegetationInstances(this.plantsOf(cx, cz), this.vegKinds, lists.add);
+      pebbleInstances(this.pebblesOf(cx, cz), lists.add);
+      const s = this.structures;
       const { x0, z0 } = chunkOrigin(cx, cz);
       return {
         biome: biomeAt(x0 + CHUNK_SIZE / 2, z0 + CHUNK_SIZE / 2),
         instances: lists.freeze(),
-        colliders: { trunks, rocks, walls: ruins.flatMap((r) => r.walls) },
+        colliders: {
+          trunks: [...trunks, ...this.#structuresIn(cx, cz, s.trunks)],
+          rocks: [...rocks, ...this.#structuresIn(cx, cz, s.rocks)],
+          walls: [...ruins.flatMap((r) => r.walls), ...this.#structuresIn(cx, cz, s.walls)],
+        },
         ruins,
       };
     });
@@ -258,15 +287,27 @@ export class ChunkManager {
     const data = this.dataOf(cx, cz);
     const { x0, z0 } = chunkOrigin(cx, cz);
     const geometry = createChunkGeometry(x0, z0, CHUNK_SIZE, TERRAIN_SEGMENTS, TEXTURE_TILE_SIZE);
-    // Masque de la route (sol plus clair), lu par le matériau du sol
+    // Masques de la route (sol plus clair) et des berges (terre humide), lus par le matériau du sol
     const pos = geometry.attributes.position;
     const mask = new Float32Array(pos.count);
-    for (let i = 0; i < pos.count; i++) mask[i] = roadMaskAt(pos.getX(i), pos.getZ(i));
+    const bank = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {
+      mask[i] = roadMaskAt(pos.getX(i), pos.getZ(i));
+      bank[i] = bankMaskAt(pos.getX(i), pos.getZ(i));
+    }
     geometry.setAttribute('roadMask', new THREE.BufferAttribute(mask, 1));
+    geometry.setAttribute('bankMask', new THREE.BufferAttribute(bank, 1));
     const mesh = new THREE.Mesh(geometry, this.groundMaterial);
     mesh.receiveShadow = true;
     this.scene.add(mesh);
-    this.loaded.set(key(cx, cz), { cx, cz, mesh, data });
+    // Surface de l'eau, si la rivière passe par ce morceau
+    const waterGeometry = createWaterGeometry(x0, z0, CHUNK_SIZE);
+    const water = waterGeometry ? new THREE.Mesh(waterGeometry, this.waterMaterial) : null;
+    if (water) {
+      water.receiveShadow = true;
+      this.scene.add(water);
+    }
+    this.loaded.set(key(cx, cz), { cx, cz, mesh, water, data });
     this.dirty = true;
     this.stats.lastLoadMs = performance.now() - t0;
   }
@@ -275,6 +316,10 @@ export class ChunkManager {
     const c = this.loaded.get(k);
     this.scene.remove(c.mesh);
     c.mesh.geometry.dispose();
+    if (c.water) {
+      this.scene.remove(c.water);
+      c.water.geometry.dispose();
+    }
     this.loaded.delete(k);
     this.dirty = true;
   }

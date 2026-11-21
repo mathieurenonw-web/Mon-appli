@@ -4,6 +4,7 @@ import { heightAt, slopeAt } from './terrain.js';
 import { densitiesAt } from './biomes.js';
 import { isOnRoad } from './ruins.js';
 import { regionFactorAt } from './region.js';
+import { isNearWater } from './water.js';
 
 // Arbres : modèles 3D (assets.js) ou, à défaut, la forme simple d'origine
 // (tronc cylindrique + feuillage en cône). Placés morceau par morceau (chunks.js),
@@ -57,6 +58,7 @@ export function placeTrees(x0, z0, size, rng, ruins = []) {
     if (keepRoll > densitiesAt(x, z).trees / MAX_DENSITY) continue; // densité du biome
     if (Math.hypot(x, z) < SPAWN_CLEAR_RADIUS) continue;
     if (isOnRoad(x, z)) continue;
+    if (isNearWater(x, z, 1)) continue; // ni dans l'eau ni sur les berges
     if (ruins.some((r) => Math.hypot(r.x - x, r.z - z) < r.radius)) continue;
     if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < MIN_SPACING)) continue;
     if (slopeAt(x, z) > MAX_SLOPE) continue;
