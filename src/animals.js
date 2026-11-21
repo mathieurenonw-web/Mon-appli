@@ -77,21 +77,22 @@ export class Animals {
       const z = rng.range(-AREA, AREA);
       if (Math.hypot(x, z) < MIN_SPAWN_DISTANCE) continue;
       // Refuse un emplacement dans un tronc ou un rocher
-      test.set(x, 0, z);
+      const y = colliders.heightAt(x, z);
+      test.set(x, y, z);
       colliders.pushOut(test, RADIUS, HEIGHT);
       if (test.x !== x || test.z !== z) continue;
 
       // un seul tirage, quelle que soit la taille de la palette (disposition stable)
       const fur = furMaterials[Math.floor(rng.next() * furMaterials.length)];
       const mesh = createRabbitMesh(fur, whiteMaterial, darkMaterial);
-      mesh.position.set(x, 0, z);
+      mesh.position.set(x, y, z);
       mesh.rotation.y = rng.range(0, Math.PI * 2);
       scene.add(mesh);
 
       this.list.push({
         mesh,
-        pos: new THREE.Vector3(x, 0, z), // position au sol (sans le petit bond)
-        home: new THREE.Vector3(x, 0, z),
+        pos: new THREE.Vector3(x, y, z), // position au sol (sans le petit bond)
+        home: new THREE.Vector3(x, y, z),
         state: 'idle', // idle | flee | return
         hop: 0,
       });
@@ -135,6 +136,7 @@ export class Animals {
         this.colliders.pushOut(a.pos, RADIUS, HEIGHT);
         a.pos.x = THREE.MathUtils.clamp(a.pos.x, -WORLD_LIMIT, WORLD_LIMIT);
         a.pos.z = THREE.MathUtils.clamp(a.pos.z, -WORLD_LIMIT, WORLD_LIMIT);
+        a.pos.y = this.colliders.heightAt(a.pos.x, a.pos.z); // suit le relief
 
         // Se tourne doucement vers sa direction de course
         const target = Math.atan2(this._dir.x, this._dir.z);
@@ -148,7 +150,7 @@ export class Animals {
       }
 
       // Petits bonds quand il se déplace
-      a.mesh.position.set(a.pos.x, Math.abs(Math.sin(a.hop)) * 0.2, a.pos.z);
+      a.mesh.position.set(a.pos.x, a.pos.y + Math.abs(Math.sin(a.hop)) * 0.2, a.pos.z);
     }
   }
 }

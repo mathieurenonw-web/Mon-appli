@@ -30,7 +30,8 @@ Ouvrez ensuite l'adresse affichée (par défaut http://localhost:5173).
 
 - `index.html` : page qui charge le jeu
 - `src/main.js` : point d'entrée (rendu, assemblage, boucle de jeu)
-- `src/world.js` : sol quadrillé et éclairage
+- `src/world.js` : sol (textures mélangées selon la pente) et éclairage
+- `src/terrain.js` : relief du terrain (bruit de Perlin, graine fixe), hauteur et pente en tout point
 - `src/random.js` : générateur aléatoire à graine (décor identique à chaque lancement)
 - `src/trees.js` : arbres (InstancedMesh)
 - `src/rocks.js` : rochers (InstancedMesh), placés en évitant les troncs

@@ -15,6 +15,7 @@ import { Sky } from './sky.js';
 import { PostProcessing } from './postprocessing.js';
 import { loadAssets } from './assets.js';
 import { createVegetation } from './vegetation.js';
+import { heightAt } from './terrain.js';
 
 // Point d'entrée : crée le rendu, assemble les éléments et lance la boucle de jeu.
 
@@ -30,20 +31,20 @@ document.body.appendChild(renderer.domElement);
 loadAssets()
   .catch((err) => {
     console.warn('[assets] chargement impossible, formes simples utilisées :', err);
-    return { trees: [], rocks: [], grass: [], bushes: [], ground: null, problems: [] };
+    return { trees: [], rocks: [], grass: [], bushes: [], ground: null, groundForest: null, problems: [] };
   })
   .then(start);
 
 function start(assets) {
   const scene = new THREE.Scene();
-  const { sun, hemi } = createWorld(scene, renderer, assets.ground);
+  const { sun, hemi } = createWorld(scene, renderer, assets.ground, assets.groundForest);
 
   // Décor : un seul générateur à graine, utilisé d'abord par les arbres puis par les
   // rochers. La disposition est ainsi identique à chaque lancement.
   const rng = createRandom(WORLD_SEED);
   const { trunks } = createTrees(scene, rng, assets.trees);
   const { rocks } = createRocks(scene, rng, trunks, assets.rocks);
-  const colliders = new Colliders(trunks, rocks);
+  const colliders = new Colliders(trunks, rocks, heightAt);
   const animals = new Animals(scene, rng, colliders);
   // Herbes et buissons : décoratifs, sans collision, avec leur propre générateur
   createVegetation(scene, assets, trunks, rocks);
@@ -75,7 +76,7 @@ function start(assets) {
     player.update(dt, input, colliders);
     animals.update(dt, player.position);
     dayNight.update(dt, player.position);
-    tpCamera.update(dt, player.position);
+    tpCamera.update(dt, player.position, heightAt);
     sound.update(dt, {
       walking: player.isMoving && player.grounded,
       jumped: player.jumped,

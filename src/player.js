@@ -11,8 +11,8 @@ const PLAYER_HEIGHT = 1.8;
 const GRAVITY = 25; // unités / s²
 const JUMP_HEIGHT = 1.2; // assez pour un rocher bas, bien moins que les arbres (> 3 unités)
 const JUMP_SPEED = Math.sqrt(2 * GRAVITY * JUMP_HEIGHT); // vitesse initiale pour atteindre JUMP_HEIGHT
-const STEP_UP = 0.1; // marche franchissable sans sauter (plus petite que la tolérance de collisions.js)
-const SNAP_DOWN = 0.35; // reste « collé » à une pente douce quand il descend d'un rocher
+const STEP_UP = 0.1; // montée max par image en suivant le dessus d'un rocher (< tolérance de collisions.js)
+const SNAP_DOWN = 0.35; // reste « collé » au sol en descendant une colline ou un rocher arrondi
 
 export class Player {
   constructor(scene) {
@@ -43,6 +43,7 @@ export class Player {
 
     this.velocityY = 0;
     this.grounded = true;
+    this.supportRock = -1; // rocher sur lequel il se tient (-1 = terrain)
     this.isMoving = false;
     // Événements de l'image en cours (lus par sound.js)
     this.jumped = false;
@@ -88,8 +89,10 @@ export class Player {
     this.velocityY -= GRAVITY * dt;
     pos.y += this.velocityY * dt;
 
-    // Sol sous les pieds : 0 ou le dessus d'un rocher (seulement s'il était déjà sous les pieds)
-    const support = colliders ? colliders.groundHeight(pos.x, pos.z, PLAYER_RADIUS, prevY + STEP_UP) : 0;
+    // Sol sous les pieds : le terrain, ou le dessus d'un rocher (voir collisions.js)
+    const { height: support, rock } = colliders
+      ? colliders.groundSupport(pos.x, pos.z, PLAYER_RADIUS, prevY, STEP_UP, this.supportRock)
+      : { height: 0, rock: -1 };
 
     if (pos.y <= support) {
       // Réception (au sol ou sur un rocher)
@@ -97,13 +100,16 @@ export class Player {
       pos.y = support;
       this.velocityY = 0;
       this.grounded = true;
+      this.supportRock = rock;
     } else if (this.grounded && this.velocityY <= 0 && prevY - support <= SNAP_DOWN) {
-      // Descend doucement le long d'un rocher arrondi au lieu de « décoller »
+      // Descend doucement le long d'une pente ou d'un rocher arrondi au lieu de « décoller »
       pos.y = support;
       this.velocityY = 0;
+      this.supportRock = rock;
     } else {
       // En l'air (saut, ou chute après avoir quitté un rocher)
       this.grounded = false;
+      this.supportRock = -1;
     }
   }
 }

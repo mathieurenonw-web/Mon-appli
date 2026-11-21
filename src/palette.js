@@ -8,6 +8,8 @@ export const PALETTE = {
   gridLine: '#665c47', // lignes de la grille, un peu plus foncées que le sol
   groundTint: '#b4ab98', // teinte multipliée à la texture du sol (blanc = couleurs d'origine de la texture)
   groundSaturation: 0.45, // saturation de la texture du sol (1 = d'origine, 0 = noir et blanc)
+  forestGroundTint: '#ffffff', // teinte de la texture Forest Ground (sous-bois, en plaine)
+  forestFallbackTint: '#c3c89f', // sous-bois de repli si Forest Ground manque : Dirt Floor teintée vert-olive
 
   // --- Arbres ---
   trunk: '#57463a',

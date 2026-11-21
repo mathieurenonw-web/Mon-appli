@@ -29,6 +29,12 @@ export const ASSET_FILES = {
     normalMap: 'textures/dirt_floor/dirt_floor_nor_gl_2k.jpg',
     roughnessMap: 'textures/dirt_floor/dirt_floor_rough_2k.jpg',
   },
+  // Sous-bois, utilisé en plaine (facultatif : sans lui, Dirt Floor teintée le remplace)
+  groundForest: {
+    map: 'textures/forest_ground/forest_ground_diff_2k.jpg',
+    normalMap: 'textures/forest_ground/forest_ground_nor_gl_2k.jpg',
+    roughnessMap: 'textures/forest_ground/forest_ground_rough_2k.jpg',
+  },
 };
 
 const MAX_TRIANGLES = 5000; // au-delà, un modèle est jugé trop lourd pour être répété des dizaines de fois
@@ -129,7 +135,7 @@ function showMissingNotice(problems) {
     'position:fixed;left:12px;bottom:12px;max-width:480px;padding:10px 14px;background:rgba(20,16,12,.85);' +
     'color:#f3e6d0;font:13px/1.4 system-ui,sans-serif;border-radius:6px;z-index:10;pointer-events:none';
   box.innerHTML =
-    '<b>Fichiers non chargés — formes simples utilisées à la place :</b><br>' +
+    '<b>Fichiers non chargés — éléments simples utilisés à la place :</b><br>' +
     problems.map((p) => `• ${p.file} : ${p.reason}`).join('<br>');
   document.body.appendChild(box);
   setTimeout(() => box.remove(), 12000);
@@ -152,7 +158,7 @@ export async function loadAssets() {
     } catch (err) {
       const reason = err?.message?.includes('404') || err?.type === 'error' ? 'fichier introuvable' : err?.message || String(err);
       problems.push({ file: `public/assets/${file}`, reason });
-      console.warn(`[assets] public/assets/${file} : ${reason} → forme simple utilisée à la place`);
+      console.warn(`[assets] public/assets/${file} : ${reason} → élément simple utilisé à la place`);
       return null;
     }
   };
@@ -164,12 +170,14 @@ export async function loadAssets() {
   const loadTexture = (file) => attempt(file, (url) => textureLoader.loadAsync(url));
 
   const g = ASSET_FILES.ground;
-  const [trees, rocks, grass, bushes, groundMaps] = await Promise.all([
+  const f = ASSET_FILES.groundForest;
+  const [trees, rocks, grass, bushes, groundMaps, forestMaps] = await Promise.all([
     Promise.all(ASSET_FILES.trees.map(loadTree)),
     Promise.all(ASSET_FILES.rocks.map((f) => loadStl(f, 1))),
     Promise.all(ASSET_FILES.grass.map((f) => loadStl(f, 0.5))),
     Promise.all(ASSET_FILES.bushes.map((f) => loadStl(f, 0.5))),
     Promise.all([g.map, g.normalMap, g.roughnessMap].map(loadTexture)),
+    Promise.all([f.map, f.normalMap, f.roughnessMap].map(loadTexture)),
   ]);
 
   const [map, normalMap, roughnessMap] = groundMaps;
@@ -182,6 +190,7 @@ export async function loadAssets() {
     bushes: bushes.filter(Boolean),
     // La couleur est indispensable ; normales et rugosité sont facultatives
     ground: map ? { map, normalMap, roughnessMap } : null,
+    groundForest: forestMaps[0] ? { map: forestMaps[0], normalMap: forestMaps[1], roughnessMap: forestMaps[2] } : null,
     problems,
   };
 }

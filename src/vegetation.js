@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PALETTE } from './palette.js';
 import { createRandom, WORLD_SEED } from './random.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { heightAt, normalAt } from './terrain.js';
 
 // Végétation basse : touffes d'herbe et buissons, purement décoratifs.
 // - Aucune collision : le personnage et les animaux passent au travers.
@@ -70,6 +71,8 @@ export function createVegetation(scene, models, trunks = [], rocks = []) {
   const quaternion = new THREE.Quaternion();
   const scale = new THREE.Vector3();
   const up = new THREE.Vector3(0, 1, 0);
+  const normal = new THREE.Vector3();
+  const slopeQuat = new THREE.Quaternion();
   const color = new THREE.Color();
   const v = PALETTE.vegetationVariation;
 
@@ -98,8 +101,10 @@ export function createVegetation(scene, models, trunks = [], rocks = []) {
       if (group.length === 0) return;
       const mesh = new THREE.InstancedMesh(kind.geometry, type.material, group.length);
       group.forEach((p, i) => {
-        position.set(p.x, 0, p.z);
+        // Posé sur le relief et incliné comme le sol
+        position.set(p.x, heightAt(p.x, p.z) - 0.03, p.z);
         quaternion.setFromAxisAngle(up, p.rotation);
+        quaternion.premultiply(slopeQuat.setFromUnitVectors(up, normalAt(p.x, p.z, normal)));
         scale.setScalar(p.size);
         matrix.compose(position, quaternion, scale);
         mesh.setMatrixAt(i, matrix);

@@ -6,23 +6,31 @@
 //
 // Un corps (personnage ou animal) est vu comme un cylindre vertical : rayon `radius`,
 // pieds à `pos.y`, hauteur `height`.
+// Le sol est le terrain en relief (fonction `heightAt`) ; les rochers sont posés dessus.
 
 const SIDE_TOLERANCE = 0.15; // un rocher ne bloque que s'il dépasse les pieds d'au moins cette hauteur
 // On ne peut se poser que sur le dessus d'un rocher, là où la pente fait moins de 45°.
 // Sur les flancs plus raides, on glisse : impossible d'y prendre appui pour grimper.
 const MAX_STAND_SLOPE = Math.SQRT1_2; // sin(45°)
+const PUSH_PASSES = 3;
+const STEP_ONTO = 0.02; // depuis le terrain, un rocher doit déjà être (presque) sous les pieds
 
 export class Colliders {
   /**
    * @param {{ x: number, z: number, radius: number }[]} trunks
-   * @param {{ x: number, z: number, footprint: number, top: number }[]} rocks
+   * @param {{ x: number, z: number, footprint: number, top: number, base?: number }[]} rocks
+   *   top et base en hauteur absolue (base = hauteur du terrain sous le rocher)
+   * @param {(x: number, z: number) => number} heightAt  hauteur du terrain (0 = sol plat)
    */
-  constructor(trunks = [], rocks = []) {
+  constructor(trunks = [], rocks = [], heightAt = () => 0) {
     this.trunks = trunks;
-    this.rocks = rocks.map(({ x, z, footprint: a, top: t }) => {
-      // Sphère passant par le sommet (hauteur t) et par le cercle d'emprise au sol (rayon a)
+    this.heightAt = heightAt;
+    this.rocks = rocks.map(({ x, z, footprint: a, top, base = 0 }) => {
+      // Sphère passant par le sommet (hauteur t au-dessus de la base) et par le cercle
+      // d'emprise au sol (rayon a). Tout est ensuite exprimé en hauteur absolue.
+      const t = Math.max(top - base, 0.05);
       const cy = (t * t - a * a) / (2 * t);
-      return { x, z, cy, r: t - cy, top: t };
+      return { x, z, cy: base + cy, r: t - cy, top: base + t };
     });
   }
 
@@ -33,12 +41,16 @@ export class Colliders {
     return rock.cy + Math.sqrt(rock.r * rock.r - e * e);
   }
 
-  /** Repousse horizontalement `pos` hors des troncs et des flancs des rochers. */
+  /**
+   * Repousse horizontalement `pos` hors des troncs et des flancs des rochers.
+   * Répété quelques fois : quand un rocher touche un tronc, sortir de l'un ne doit pas
+   * faire entrer dans l'autre.
+   */
   pushOut(pos, radius, height) {
-    for (const t of this.trunks) {
-      pushFromCircle(pos, t.x, t.z, t.radius + radius);
-    }
+    for (let pass = 0; pass < PUSH_PASSES; pass++) this.#pushOnce(pos, radius, height);
+  }
 
+  #pushOnce(pos, radius, height) {
     const feet = pos.y + SIDE_TOLERANCE;
     for (const rock of this.rocks) {
       if (feet >= rock.top) continue; // le corps est au-dessus du rocher
@@ -48,22 +60,35 @@ export class Colliders {
       if (Math.abs(dy) >= rock.r) continue;
       pushFromCircle(pos, rock.x, rock.z, radius + Math.sqrt(rock.r * rock.r - dy * dy));
     }
+    // Les troncs en dernier : ils ont toujours le dernier mot (jamais traversés)
+    for (const t of this.trunks) {
+      pushFromCircle(pos, t.x, t.z, t.radius + radius);
+    }
   }
 
   /**
-   * Hauteur du sol sous le corps : 0, ou le dessus d'un rocher s'il ne dépasse pas `maxY`
-   * (on ne peut se poser que sur une surface qui est sous les pieds, jamais monter par le côté).
+   * Sol sous le corps : le terrain (toujours : on monte les collines en marchant),
+   * ou le dessus d'un rocher. Un rocher ne compte que si sa surface est déjà sous les pieds
+   * (on s'y pose en retombant dessus), sauf le rocher sur lequel on se tient déjà, dont on
+   * peut suivre la surface en montant de `stepUp` au plus. Impossible donc de gravir un
+   * rocher à petits pas depuis le terrain : il faut sauter.
+   * @returns {{ height: number, rock: number }}  rock = indice du rocher, -1 pour le terrain
    */
-  groundHeight(x, z, radius, maxY) {
-    let h = 0;
-    for (const rock of this.rocks) {
-      const d = Math.hypot(x - rock.x, z - rock.z);
-      if (d >= rock.r + radius) continue;
-      if (d - radius > rock.r * MAX_STAND_SLOPE) continue; // flanc trop raide
-      const s = this.#rockSurface(rock, d, radius);
-      if (s <= maxY && s > h) h = s;
-    }
-    return h;
+  groundSupport(x, z, radius, feetY, stepUp = 0, currentRock = -1) {
+    let height = this.heightAt(x, z);
+    let rock = -1;
+    this.rocks.forEach((r, i) => {
+      const d = Math.hypot(x - r.x, z - r.z);
+      if (d >= r.r + radius) return;
+      if (d - radius > r.r * MAX_STAND_SLOPE) return; // flanc trop raide
+      const s = this.#rockSurface(r, d, radius);
+      const limit = feetY + (i === currentRock ? stepUp : STEP_ONTO);
+      if (s <= limit && s > height) {
+        height = s;
+        rock = i;
+      }
+    });
+    return { height, rock };
   }
 }
 

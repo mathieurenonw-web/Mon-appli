@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PALETTE } from './palette.js';
+import { heightAt, slopeAt, normalAt } from './terrain.js';
 
 // Rochers : des modèles 3D (assets.js) ou, à défaut, des dodécaèdres légèrement déformés.
 // Comme pour les arbres, on utilise des InstancedMesh. Une instance partage la forme
@@ -15,6 +16,8 @@ const AREA = 45; // même zone que les arbres
 const SPAWN_CLEAR_RADIUS = 5; // aucun rocher autour du point de départ du joueur
 const TRUNK_MARGIN = 0.3; // espace minimal entre un rocher et un tronc
 const MAX_TILT = 0.35; // inclinaison maximale, en radians (~20°)
+const MAX_SLOPE = 22; // pas de rocher sur les pentes plus raides (en degrés)
+const SLOPE_ALIGN = 0.7; // 0 = rocher droit, 1 = rocher entièrement couché sur la pente
 const MODEL_TILT = 0.5; // les modèles 3D ont déjà une forme irrégulière : on les incline moitié moins
 
 /** Dodécaèdre de rayon 1 dont chaque sommet est déplacé un peu au hasard. */
@@ -62,6 +65,7 @@ export function createRocks(scene, rng, trunks = [], models = []) {
     if (trunks.some((t) => Math.hypot(t.x - x, t.z - z) < (t.placementRadius ?? t.radius) + size + TRUNK_MARGIN)) continue;
     // Pas de rochers imbriqués les uns dans les autres
     if (rocks.some((r) => Math.hypot(r.x - x, r.z - z) < r.size + size)) continue;
+    if (slopeAt(x, z) > MAX_SLOPE) continue;
 
     rocks.push({
       x,
@@ -84,6 +88,10 @@ export function createRocks(scene, rng, trunks = [], models = []) {
   const color = new THREE.Color();
   const vertex = new THREE.Vector3();
   const tilted = new THREE.Euler();
+  const up = new THREE.Vector3(0, 1, 0);
+  const normal = new THREE.Vector3();
+  const slopeQuat = new THREE.Quaternion();
+  const identity = new THREE.Quaternion();
   const colliders = [];
 
   for (let variant = 0; variant < VARIANT_COUNT; variant++) {
@@ -98,6 +106,7 @@ export function createRocks(scene, rng, trunks = [], models = []) {
     const mesh = new THREE.InstancedMesh(geometry, material, group.length);
     const vertices = geometry.attributes.position;
     group.forEach((rock, i) => {
+      const base = heightAt(rock.x, rock.z); // hauteur du terrain sous le rocher
       if (model) {
         // Modèle 3D : base à y = 0, proportions d'origine conservées (± variation),
         // inclinaison réduite de moitié et légèrement enfoncé pour ne jamais flotter.
@@ -105,14 +114,18 @@ export function createRocks(scene, rng, trunks = [], models = []) {
         tilted.set(rock.rotation.x * MODEL_TILT, rock.rotation.y, rock.rotation.z * MODEL_TILT);
         const tilt = Math.max(Math.abs(tilted.x), Math.abs(tilted.z));
         const sink = Math.sin(tilt) * Math.max(scale.x, scale.z) + 0.06 * model.height * scale.y;
-        position.set(rock.x, -sink, rock.z);
+        position.set(rock.x, base - sink, rock.z);
         quaternion.setFromEuler(tilted);
       } else {
         scale.copy(rock.stretch).multiplyScalar(rock.size);
         // Enfoncé dans le sol pour qu'il ne flotte pas malgré l'inclinaison
-        position.set(rock.x, scale.y * 0.45, rock.z);
+        position.set(rock.x, base + scale.y * 0.45, rock.z);
         quaternion.setFromEuler(rock.rotation);
       }
+      // Orientation légère selon la pente du terrain sous le rocher
+      slopeQuat.setFromUnitVectors(up, normalAt(rock.x, rock.z, normal));
+      slopeQuat.slerp(identity, 1 - SLOPE_ALIGN);
+      quaternion.premultiply(slopeQuat);
       matrix.compose(position, quaternion, scale);
       mesh.setMatrixAt(i, matrix);
       const rockColors = PALETTE.rocks;
@@ -120,14 +133,14 @@ export function createRocks(scene, rng, trunks = [], models = []) {
 
       // Mesures pour les collisions, sur les sommets réels du rocher transformé
       // (la sphère de collision s'ajuste donc automatiquement à la forme du modèle)
-      let top = 0;
+      let top = -Infinity;
       let reach = 0;
       for (let k = 0; k < vertices.count; k++) {
         vertex.fromBufferAttribute(vertices, k).applyMatrix4(matrix);
         top = Math.max(top, vertex.y);
         reach = Math.max(reach, Math.hypot(vertex.x - rock.x, vertex.z - rock.z));
       }
-      colliders.push({ x: rock.x, z: rock.z, footprint: reach * 0.85, top: top * 0.95 });
+      colliders.push({ x: rock.x, z: rock.z, footprint: reach * 0.85, top: base + (top - base) * 0.95, base });
     });
 
     mesh.castShadow = true;

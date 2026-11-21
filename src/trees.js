@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PALETTE } from './palette.js';
 import { createRandom, WORLD_SEED } from './random.js';
+import { heightAt, slopeAt } from './terrain.js';
 
 // Arbres : modèles 3D (assets.js) répartis au hasard, ou à défaut la forme simple
 // d'origine (tronc cylindrique + feuillage en cône).
@@ -17,6 +18,8 @@ const FOLIAGE_RADIUS = 1.2;
 const FOLIAGE_HEIGHT = 2.6;
 const TREE_HEIGHT = TRUNK_HEIGHT + FOLIAGE_HEIGHT - 0.3; // hauteur des modèles 3D, identique à la forme simple
 const MIN_COLLISION_RADIUS = 0.12;
+const MAX_SLOPE = 18; // pas d'arbre sur les pentes plus raides (en degrés)
+const SINK = 0.15; // pied légèrement enfoncé : pas de vide sous le tronc sur une pente
 
 /**
  * @param {THREE.Scene} scene
@@ -36,6 +39,7 @@ export function createTrees(scene, rng, models = []) {
     const z = rng.range(-AREA, AREA);
     if (Math.hypot(x, z) < SPAWN_CLEAR_RADIUS) continue;
     if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < MIN_SPACING)) continue;
+    if (slopeAt(x, z) > MAX_SLOPE) continue;
     trees.push({ x, z, scale: rng.range(0.8, 1.4), rotation: rng.range(0, Math.PI * 2) });
   }
 
@@ -86,8 +90,8 @@ export function createTrees(scene, rng, models = []) {
     const foliage = new THREE.InstancedMesh(kind.foliage, foliageMaterial, group.length);
 
     group.forEach((tree, i) => {
-      position.set(tree.x, 0, tree.z);
-      quaternion.setFromAxisAngle(up, tree.rotation);
+      position.set(tree.x, heightAt(tree.x, tree.z) - SINK, tree.z); // posé sur le relief
+      quaternion.setFromAxisAngle(up, tree.rotation); // les arbres poussent droit, même en pente
       scale.setScalar(tree.scale * kind.size);
       matrix.compose(position, quaternion, scale);
       trunks.setMatrixAt(i, matrix);

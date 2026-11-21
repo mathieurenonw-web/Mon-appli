@@ -6,6 +6,7 @@ import * as THREE from 'three';
 const OFFSET = new THREE.Vector3(0, 6, 9); // position relative au personnage
 const LOOK_HEIGHT = 1; // on vise le haut du corps plutôt que les pieds
 const FOLLOW_SPEED = 4; // plus grand = caméra plus réactive
+const MIN_HEIGHT_ABOVE_GROUND = 1.5; // la caméra reste toujours au-dessus du terrain
 
 export class ThirdPersonCamera {
   constructor(aspect) {
@@ -22,7 +23,12 @@ export class ThirdPersonCamera {
     this.camera.lookAt(this._target);
   }
 
-  update(dt, position) {
+  /**
+   * @param {number} dt
+   * @param {THREE.Vector3} position  position du personnage
+   * @param {(x: number, z: number) => number} [heightAt]  hauteur du terrain
+   */
+  update(dt, position, heightAt) {
     const t = 1 - Math.exp(-FOLLOW_SPEED * dt);
 
     // Point visé, lissé
@@ -32,6 +38,10 @@ export class ThirdPersonCamera {
     // Position de la caméra, lissée
     this._desired.copy(position).add(OFFSET);
     this.camera.position.lerp(this._desired, t);
+    if (heightAt) {
+      const minY = heightAt(this.camera.position.x, this.camera.position.z) + MIN_HEIGHT_ABOVE_GROUND;
+      if (this.camera.position.y < minY) this.camera.position.y = minY;
+    }
 
     this.camera.lookAt(this._target);
   }

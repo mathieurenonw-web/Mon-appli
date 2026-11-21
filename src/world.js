@@ -1,10 +1,14 @@
 import * as THREE from 'three';
 import { PALETTE } from './palette.js';
+import { createTerrainGeometry, TERRAIN_SIZE } from './terrain.js';
 
-// Le décor : sol plat avec grille de repère, et éclairage.
+// Le décor : terrain en relief (forme : terrain.js) avec grille de repère, et éclairage.
 // (Le ciel et le brouillard sont gérés par sky.js.)
 
-const GROUND_SIZE = 200; // en unités ; 1 case de grille = 1 unité
+const GROUND_SIZE = TERRAIN_SIZE; // en unités ; 1 case de grille = 1 unité
+// Mélange sous-bois / terre selon la pente (1 - cos de l'angle) : ~11° → début de terre, ~20° → terre seule
+const SLOPE_DIRT_START = 0.02;
+const SLOPE_DIRT_FULL = 0.06;
 const TEXTURE_TILE_SIZE = 3; // taille (en unités) d'une répétition de la texture du sol
 const GRID_STRENGTH = 0.18; // visibilité de la grille sur le sol texturé (0 = pas de grille)
 const SHADOW_AREA = 30; // côté (en unités) de la zone d'ombres nettes centrée sur le personnage
@@ -31,45 +35,84 @@ function createGridTexture(renderer) {
 }
 
 /**
- * Sol texturé PBR (couleur, normales, rugosité). Pour éviter la répétition visible,
- * la couleur mélange deux échantillons de la texture à des échelles et angles différents,
+ * Sol texturé PBR (couleur, normales, rugosité) qui mélange deux textures selon la pente :
+ * sous-bois (Forest Ground) sur le plat, terre (Dirt Floor) sur les pentes raides.
+ * Pour éviter la répétition visible, chaque texture est échantillonnée à deux échelles,
  * avec de grandes variations de luminosité. Une grille discrète reste visible.
+ * Si Forest Ground manque, le sous-bois est une version teintée de Dirt Floor.
  */
-function createTexturedGroundMaterial(renderer, { map, normalMap, roughnessMap }) {
+function createTexturedGroundMaterial(renderer, dirt, forest) {
   const repeat = GROUND_SIZE / TEXTURE_TILE_SIZE;
-  for (const tex of [map, normalMap, roughnessMap]) {
+  const all = [dirt.map, dirt.normalMap, dirt.roughnessMap, forest?.map, forest?.normalMap, forest?.roughnessMap];
+  for (const tex of all) {
     if (!tex) continue;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(repeat, repeat);
     tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
   }
-  map.colorSpace = THREE.SRGBColorSpace;
+  dirt.map.colorSpace = THREE.SRGBColorSpace;
+  if (forest?.map) forest.map.colorSpace = THREE.SRGBColorSpace;
 
+  const hasForest = Boolean(forest?.map);
   const material = new THREE.MeshStandardMaterial({
-    map,
-    normalMap: normalMap ?? null,
-    roughnessMap: roughnessMap ?? null,
+    map: dirt.map,
+    normalMap: dirt.normalMap ?? null,
+    roughnessMap: dirt.roughnessMap ?? null,
     color: PALETTE.groundTint,
     roughness: 1,
   });
 
   material.onBeforeCompile = (shader) => {
-    shader.uniforms.gridStrength = { value: GRID_STRENGTH };
-    shader.uniforms.groundSaturation = { value: PALETTE.groundSaturation };
+    Object.assign(shader.uniforms, {
+      gridStrength: { value: GRID_STRENGTH },
+      groundSaturation: { value: PALETTE.groundSaturation },
+      forestMap: { value: hasForest ? forest.map : dirt.map },
+      forestNormalMap: { value: (hasForest && forest.normalMap) || dirt.normalMap || dirt.map },
+      forestRoughnessMap: { value: (hasForest && forest.roughnessMap) || dirt.roughnessMap || dirt.map },
+      forestTint: { value: new THREE.Color(hasForest ? PALETTE.forestGroundTint : PALETTE.forestFallbackTint) },
+      forestScale: { value: hasForest ? 1 : 0.63 }, // version de repli : autre échelle, pour se distinguer
+      slopeRange: { value: new THREE.Vector2(SLOPE_DIRT_START, SLOPE_DIRT_FULL) },
+    });
+
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vGroundPos;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGroundPos = position.xy;');
+      .replace('#include <common>', '#include <common>\nvarying vec2 vGroundPos;\nvarying float vSlope;')
+      .replace(
+        '#include <begin_vertex>',
+        // Le maillage est en coordonnées du monde : position.xz = position au sol, normal.y = pente
+        '#include <begin_vertex>\nvGroundPos = position.xz;\nvSlope = 1.0 - normal.y;'
+      );
+
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vGroundPos;\nuniform float gridStrength;\nuniform float groundSaturation;')
+      .replace(
+        '#include <common>',
+        /* glsl */ `#include <common>
+        varying vec2 vGroundPos;
+        varying float vSlope;
+        uniform float gridStrength;
+        uniform float groundSaturation;
+        uniform sampler2D forestMap;
+        uniform sampler2D forestNormalMap;
+        uniform sampler2D forestRoughnessMap;
+        uniform vec3 forestTint;
+        uniform float forestScale;
+        uniform vec2 slopeRange;
+        float forestAmount; // 1 = sous-bois, 0 = terre (calculé une fois, réutilisé plus bas)
+        const mat2 ROT = mat2( 0.8, -0.6, 0.6, 0.8 );
+        vec4 twoScales( sampler2D tex, vec2 uv ) {
+          return mix( texture2D( tex, uv ), texture2D( tex, ROT * uv * 0.37 + vec2( 0.13, 0.71 ) ), 0.45 );
+        }`
+      )
       .replace(
         '#include <map_fragment>',
         /* glsl */ `
         #ifdef USE_MAP
-          // Deux échantillons : échelle normale + échelle plus grande et tournée
-          vec4 texA = texture2D( map, vMapUv );
-          vec2 uvB = mat2( 0.8, -0.6, 0.6, 0.8 ) * vMapUv * 0.37 + vec2( 0.13, 0.71 );
-          vec4 texB = texture2D( map, uvB );
-          vec4 sampledDiffuseColor = mix( texA, texB, 0.45 );
+          vec4 dirtColor = twoScales( map, vMapUv );
+          vec4 forestColor = twoScales( forestMap, vMapUv * forestScale );
+          forestColor.rgb *= forestTint;
+          // Mélange selon la pente, avec une frontière irrégulière (pas de ligne droite)
+          float wobble = sin( vGroundPos.x * 0.31 + sin( vGroundPos.y * 0.23 ) * 2.0 ) * sin( vGroundPos.y * 0.27 + 1.1 );
+          forestAmount = 1.0 - smoothstep( slopeRange.x, slopeRange.y, vSlope + wobble * 0.012 );
+          vec4 sampledDiffuseColor = mix( dirtColor, forestColor, forestAmount );
           // Grandes taches plus claires / plus sombres (quelques dizaines d'unités)
           vec2 w = vGroundPos * 0.045;
           float macro = 0.88 + 0.12 * sin( w.x * 1.3 + sin( w.y * 0.7 ) ) * sin( w.y * 1.1 + 1.7 );
@@ -83,6 +126,21 @@ function createTexturedGroundMaterial(renderer, { map, normalMap, roughnessMap }
           sampledDiffuseColor.rgb *= 1.0 - line * gridStrength;
           diffuseColor *= sampledDiffuseColor;
         #endif`
+      )
+      // Rugosité et normales mélangées de la même façon
+      .replace(
+        '#include <roughnessmap_fragment>',
+        THREE.ShaderChunk.roughnessmap_fragment.replace(
+          'vec4 texelRoughness = texture2D( roughnessMap, vRoughnessMapUv );',
+          'vec4 texelRoughness = mix( texture2D( roughnessMap, vRoughnessMapUv ), texture2D( forestRoughnessMap, vRoughnessMapUv * forestScale ), forestAmount );'
+        )
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        THREE.ShaderChunk.normal_fragment_maps.replace(
+          'vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;',
+          'vec3 mapN = mix( texture2D( normalMap, vNormalMapUv ), texture2D( forestNormalMap, vNormalMapUv * forestScale ), forestAmount ).xyz * 2.0 - 1.0;'
+        )
       );
   };
   return material;
@@ -91,18 +149,18 @@ function createTexturedGroundMaterial(renderer, { map, normalMap, roughnessMap }
 /**
  * @param {THREE.Scene} scene
  * @param {THREE.WebGLRenderer} renderer
- * @param {{ map, normalMap, roughnessMap } | null} groundTextures  textures du sol (assets.js),
+ * @param {{ map, normalMap, roughnessMap } | null} groundTextures  textures Dirt Floor (assets.js),
  *   ou null pour garder le sol uni quadrillé d'origine
+ * @param {{ map, normalMap, roughnessMap } | null} forestTextures  textures Forest Ground (facultatives)
  */
-export function createWorld(scene, renderer, groundTextures = null) {
-  // Sol uni quadrillé
+export function createWorld(scene, renderer, groundTextures = null, forestTextures = null) {
+  // Terrain en relief (terrain.js), texturé ou uni quadrillé
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
+    createTerrainGeometry(),
     groundTextures
-      ? createTexturedGroundMaterial(renderer, groundTextures)
+      ? createTexturedGroundMaterial(renderer, groundTextures, forestTextures)
       : new THREE.MeshStandardMaterial({ map: createGridTexture(renderer), roughness: 1 })
   );
-  ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
 
