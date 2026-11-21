@@ -17,7 +17,7 @@ import { PostProcessing } from './postprocessing.js';
 // Point d'entrée : crée le rendu, assemble les éléments et lance la boucle de jeu.
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// (résolution de rendu gérée par postprocessing.js, qui l'adapte à la puissance de l'ordinateur)
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -54,8 +54,9 @@ window.addEventListener('resize', () => {
 const clock = new THREE.Clock();
 
 function loop() {
+  const frameTime = clock.getDelta();
   // dt plafonné pour éviter un grand saut après un changement d'onglet
-  const dt = Math.min(clock.getDelta(), 0.1);
+  const dt = Math.min(frameTime, 0.1);
 
   player.update(dt, input, colliders);
   animals.update(dt, player.position);
@@ -69,7 +70,7 @@ function loop() {
   });
 
   sky.update(tpCamera.camera);
-  post.render();
+  post.render(frameTime);
   requestAnimationFrame(loop);
 }
 
